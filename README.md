@@ -1,4 +1,4 @@
-# 🍳 Recipe Finder: Smart AI Pantry Chef
+# 🍳 Flavr: Smart AI Pantry Chef
 
 [![Deployed on Vercel](https://img.shields.io/badge/Vercel-Deployed-000000?style=for-the-badge&logo=vercel)](https://recipe-finder-lac-one.vercel.app)
 [![React](https://img.shields.io/badge/React-19-61DAFB?style=for-the-badge&logo=react&logoColor=black)](https://react.dev/)
@@ -7,7 +7,7 @@
 
 > "Turn whatever you have in your kitchen into an extraordinary meal. No waste, no stress, just delicious food."
 
-**Recipe Finder** is a modern, high-performance web application designed to help home cooks—especially absolute beginners—create amazing dishes using whatever ingredients they currently have. Powered by **Gemini 2.5 Flash** using structured JSON output, the app evaluates pantry ingredients, checks for culinary safety, ranks recipes by feasibility, and offers detailed step-by-step instructions.
+**Flavr** is a modern, high-performance web application designed to help home cooks—especially absolute beginners—create amazing dishes using whatever ingredients they currently have. Powered by **Gemini 2.5 Flash** using structured JSON output, the app evaluates pantry ingredients, checks for culinary safety, ranks recipes by feasibility, and offers detailed step-by-step instructions.
 
 ---
 
