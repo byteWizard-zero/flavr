@@ -41,8 +41,8 @@
 
 1. **Clone the Repository:**
    ```bash
-   git clone https://github.com/byteWizard-zero/recipe-finder.git
-   cd recipe-finder
+    git clone https://github.com/byteWizard-zero/flavr.git
+    cd flavr
    ```
 
 2. **Install Dependencies:**
