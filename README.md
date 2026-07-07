@@ -41,7 +41,7 @@
 
 1. **Clone the Repository:**
    ```bash
-   git clone https://github.com/1bitVscoder/recipe-finder.git
+   git clone https://github.com/byteWizard-zero/recipe-finder.git
    cd recipe-finder
    ```
 
