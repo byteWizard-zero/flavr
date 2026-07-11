@@ -66,13 +66,19 @@ export async function generateRecipesFromPantry(ingredientsList, preferences = {
     }
   `;
 
-  // 1. Try Direct Google Generative AI SDK call
+  // 1. Try Direct Google Generative AI SDK call (with 5-second timeout)
   try {
     const model = genAI.getGenerativeModel({ 
       model: 'gemini-2.5-flash',
       generationConfig: { responseMimeType: 'application/json' }
     });
-    const result = await model.generateContent(prompt);
+    
+    // Race the generation promise against a 5-second timeout rejection
+    const result = await Promise.race([
+      model.generateContent(prompt),
+      new Promise((_, reject) => setTimeout(() => reject(new Error("Direct API call timed out after 5 seconds")), 5000))
+    ]);
+
     const responseText = result.response.text();
     return JSON.parse(responseText);
   } catch (directError) {
