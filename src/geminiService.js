@@ -1,13 +1,30 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
-// Initialize the SDK using the secure Vite environment variable
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-const genAI = new GoogleGenerativeAI(apiKey);
+/**
+ * Normalizes proxy base URL or full URL to ensure valid chat completion endpoint.
+ * Handles inputs like:
+ * - "http://localhost:3001" -> "http://localhost:3001/v1/chat/completions"
+ * - "http://localhost:3001/v1" -> "http://localhost:3001/v1/chat/completions"
+ * - "http://localhost:3001/v1/chat/completions" -> "http://localhost:3001/v1/chat/completions"
+ */
+function getProxyEndpoint(rawUrl) {
+  if (!rawUrl) return 'http://localhost:3001/v1/chat/completions';
+  let url = rawUrl.trim().replace(/\/+$/, '');
+  if (!url.endsWith('/chat/completions')) {
+    if (url.endsWith('/v1')) {
+      url += '/chat/completions';
+    } else {
+      url += '/v1/chat/completions';
+    }
+  }
+  return url;
+}
 
 /**
- * Sends ingredients to Gemini 3 Flash to get ranked, beginner-friendly recipes.
+ * Sends ingredients to Gemini / FreeLLM proxy to get ranked, beginner-friendly recipes.
  * Uses Structured JSON Output to guarantee clean parsing.
  * @param {Array<string>} ingredientsList 
+ * @param {Object} preferences
  * @returns {Promise<Object>} Formatted recipes or sanity check errors
  */
 export async function generateRecipesFromPantry(ingredientsList, preferences = {}) {
@@ -62,61 +79,73 @@ export async function generateRecipesFromPantry(ingredientsList, preferences = {
             "Detailed, beginner-reliant step 2 with visual/timing cues."
           ]
         }
-      }
+      ]
     }
   `;
 
-  // 1. Try Direct Google Generative AI SDK call (with 5-second timeout)
+  const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY;
+
+  // 1. If VITE_GEMINI_API_KEY is defined, try Direct Google Generative AI SDK call
+  if (geminiApiKey) {
+    try {
+      const genAI = new GoogleGenerativeAI(geminiApiKey);
+      const model = genAI.getGenerativeModel({ 
+        model: 'gemini-2.5-flash',
+        generationConfig: { responseMimeType: 'application/json' }
+      });
+      
+      const result = await Promise.race([
+        model.generateContent(prompt),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("Direct API call timed out after 5 seconds")), 5000))
+      ]);
+
+      const responseText = result.response.text();
+      return JSON.parse(responseText);
+    } catch (directError) {
+      console.warn("Direct Gemini API failed, falling back to local FreeLLMAPI proxy:", directError);
+    }
+  }
+
+  // 2. Fall back to proxy (FreeLLM / OpenAI compatible server)
   try {
-    const model = genAI.getGenerativeModel({
-      model: 'gemini-2.5-flash',
-      generationConfig: { responseMimeType: 'application/json' }
+    const rawProxyUrl = import.meta.env.VITE_FREELLMAPI_URL || import.meta.env.VITE_BASE_URL || import.meta.env.VITE_API_BASE_URL;
+    const proxyUrl = getProxyEndpoint(rawProxyUrl);
+    
+    const proxyKey = import.meta.env.VITE_FREELLMAPI_KEY || 
+                     import.meta.env.VITE_OPENAI_API_KEY || 
+                     import.meta.env.VITE_API_KEY || 
+                     import.meta.env.OPENAI_API_KEY;
+
+    const headers = {
+      'Content-Type': 'application/json'
+    };
+    if (proxyKey) {
+      headers['Authorization'] = `Bearer ${proxyKey}`;
+    }
+
+    const response = await fetch(proxyUrl, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        model: 'gemini-2.5-flash',
+        messages: [{ role: 'user', content: prompt }],
+        response_format: { type: 'json_object' }
+      })
     });
 
-    // Race the generation promise against a 5-second timeout rejection
-    const result = await Promise.race([
-      model.generateContent(prompt),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("Direct API call timed out after 5 seconds")), 5000))
-    ]);
-
-    const responseText = result.response.text();
-    return JSON.parse(responseText);
-  } catch (directError) {
-    console.warn("Direct Gemini API failed, falling back to local FreeLLMAPI proxy:", directError);
-
-    // 2. Fall back to local FreeLLMAPI proxy
-    try {
-      const proxyUrl = import.meta.env.VITE_FREELLMAPI_URL || 'http://localhost:3001/v1/chat/completions';
-      const proxyKey = import.meta.env.VITE_OPENAI_API_KEY || import.meta.env.OPENAI_API_KEY;
-
-      const headers = {
-        'Content-Type': 'application/json'
-      };
-      if (proxyKey) {
-        headers['Authorization'] = `Bearer ${proxyKey}`;
-      }
-
-      const response = await fetch(proxyUrl, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          model: 'gemini-2.5-flash',
-          messages: [{ role: 'user', content: prompt }],
-          response_format: { type: 'json_object' }
-        })
-      });
-
-      if (!response.ok) {
-        const errText = await response.text();
-        throw new Error(`Proxy returned status ${response.status}: ${errText}`);
-      }
-
-      const data = await response.json();
-      const responseText = data.choices[0].message.content;
-      return JSON.parse(responseText);
-    } catch (proxyError) {
-      console.error("Both direct Gemini API and FreeLLMAPI proxy failed:", proxyError);
-      throw new Error("Failed to communicate with our culinary core. All provider connections failed.", { cause: proxyError });
+    if (!response.ok) {
+      const errText = await response.text();
+      throw new Error(`Proxy returned status ${response.status}: ${errText}`);
     }
+
+    const data = await response.json();
+    const responseText = data.choices?.[0]?.message?.content || data.content;
+    if (!responseText) {
+      throw new Error("Proxy returned empty response content.");
+    }
+    return JSON.parse(responseText);
+  } catch (proxyError) {
+    console.error("Both direct Gemini API and FreeLLMAPI proxy failed:", proxyError);
+    throw new Error("Failed to communicate with our culinary core. All provider connections failed.", { cause: proxyError });
   }
 }
