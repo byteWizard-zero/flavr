@@ -68,11 +68,11 @@ export async function generateRecipesFromPantry(ingredientsList, preferences = {
 
   // 1. Try Direct Google Generative AI SDK call (with 5-second timeout)
   try {
-    const model = genAI.getGenerativeModel({ 
+    const model = genAI.getGenerativeModel({
       model: 'gemini-2.5-flash',
       generationConfig: { responseMimeType: 'application/json' }
     });
-    
+
     // Race the generation promise against a 5-second timeout rejection
     const result = await Promise.race([
       model.generateContent(prompt),
@@ -86,12 +86,19 @@ export async function generateRecipesFromPantry(ingredientsList, preferences = {
 
     // 2. Fall back to local FreeLLMAPI proxy
     try {
-      const response = await fetch('http://localhost:3001/v1/chat/completions', {
+      const proxyUrl = import.meta.env.VITE_FREELLMAPI_URL || 'http://localhost:3001/v1/chat/completions';
+      const proxyKey = import.meta.env.VITE_OPENAI_API_KEY || import.meta.env.OPENAI_API_KEY;
+
+      const headers = {
+        'Content-Type': 'application/json'
+      };
+      if (proxyKey) {
+        headers['Authorization'] = `Bearer ${proxyKey}`;
+      }
+
+      const response = await fetch(proxyUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': 'Bearer freellmapi-9a1c00a670d3d3d1a9a7b276f24e8c60e8ad730e2e110bb6'
-        },
+        headers,
         body: JSON.stringify({
           model: 'gemini-2.5-flash',
           messages: [{ role: 'user', content: prompt }],
