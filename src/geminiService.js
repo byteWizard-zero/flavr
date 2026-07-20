@@ -1,14 +1,15 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 /**
- * Normalizes proxy base URL or full URL to ensure valid chat completion endpoint.
+ * Normalizes proxy base URL or full endpoint URL to ensure valid chat completion endpoint.
  * Handles inputs like:
- * - "http://localhost:3001" -> "http://localhost:3001/v1/chat/completions"
- * - "http://localhost:3001/v1" -> "http://localhost:3001/v1/chat/completions"
- * - "http://localhost:3001/v1/chat/completions" -> "http://localhost:3001/v1/chat/completions"
+ * - "https://my-freellmapi-proxy.onrender.com/v1" -> "https://my-freellmapi-proxy.onrender.com/v1/chat/completions"
+ * - "https://my-freellmapi-proxy.onrender.com" -> "https://my-freellmapi-proxy.onrender.com/v1/chat/completions"
+ * - "https://my-freellmapi-proxy.onrender.com/v1/chat/completions" -> "https://my-freellmapi-proxy.onrender.com/v1/chat/completions"
  */
 function getProxyEndpoint(rawUrl) {
-  if (!rawUrl) return 'http://localhost:3001/v1/chat/completions';
+  const defaultUrl = 'https://my-freellmapi-proxy.onrender.com/v1/chat/completions';
+  if (!rawUrl) return defaultUrl;
   let url = rawUrl.trim().replace(/\/+$/, '');
   if (!url.endsWith('/chat/completions')) {
     if (url.endsWith('/v1')) {
@@ -18,6 +19,17 @@ function getProxyEndpoint(rawUrl) {
     }
   }
   return url;
+}
+
+/**
+ * Helper to safely extract JSON from LLM response text, stripped of markdown fences if present.
+ */
+function parseJSONResponse(text) {
+  let cleaned = text.trim();
+  if (cleaned.startsWith('```')) {
+    cleaned = cleaned.replace(/^```(?:json)?\n?/, '').replace(/\n?```$/, '').trim();
+  }
+  return JSON.parse(cleaned);
 }
 
 /**
@@ -85,7 +97,7 @@ export async function generateRecipesFromPantry(ingredientsList, preferences = {
 
   const geminiApiKey = import.meta.env.VITE_GEMINI_API_KEY;
 
-  // 1. If VITE_GEMINI_API_KEY is defined, try Direct Google Generative AI SDK call
+  // 1. If VITE_GEMINI_API_KEY is explicitly set, attempt Direct Google Generative AI SDK call first
   if (geminiApiKey) {
     try {
       const genAI = new GoogleGenerativeAI(geminiApiKey);
@@ -100,34 +112,32 @@ export async function generateRecipesFromPantry(ingredientsList, preferences = {
       ]);
 
       const responseText = result.response.text();
-      return JSON.parse(responseText);
+      return parseJSONResponse(responseText);
     } catch (directError) {
-      console.warn("Direct Gemini API failed, falling back to local FreeLLMAPI proxy:", directError);
+      console.warn("Direct Gemini API failed, falling back to FreeLLMAPI proxy:", directError);
     }
   }
 
-  // 2. Fall back to proxy (FreeLLM / OpenAI compatible server)
+  // 2. Main / Fallback path: FreeLLMAPI Proxy Call
   try {
     const rawProxyUrl = import.meta.env.VITE_FREELLMAPI_URL || import.meta.env.VITE_BASE_URL || import.meta.env.VITE_API_BASE_URL;
     const proxyUrl = getProxyEndpoint(rawProxyUrl);
     
-    const proxyKey = import.meta.env.VITE_FREELLMAPI_KEY || 
-                     import.meta.env.VITE_OPENAI_API_KEY || 
-                     import.meta.env.VITE_API_KEY || 
-                     import.meta.env.OPENAI_API_KEY;
+    const proxyKey = import.meta.env.VITE_OPENAI_API_KEY || 
+                     import.meta.env.OPENAI_API_KEY || 
+                     import.meta.env.VITE_FREELLMAPI_KEY || 
+                     'freellmapi-6c693465337e36eae695139f44da8dec2ae5f10389be9471';
 
     const headers = {
-      'Content-Type': 'application/json'
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${proxyKey}`
     };
-    if (proxyKey) {
-      headers['Authorization'] = `Bearer ${proxyKey}`;
-    }
 
     const response = await fetch(proxyUrl, {
       method: 'POST',
       headers,
       body: JSON.stringify({
-        model: 'gemini-2.5-flash',
+        model: 'auto',
         messages: [{ role: 'user', content: prompt }],
         response_format: { type: 'json_object' }
       })
@@ -143,9 +153,9 @@ export async function generateRecipesFromPantry(ingredientsList, preferences = {
     if (!responseText) {
       throw new Error("Proxy returned empty response content.");
     }
-    return JSON.parse(responseText);
+    return parseJSONResponse(responseText);
   } catch (proxyError) {
-    console.error("Both direct Gemini API and FreeLLMAPI proxy failed:", proxyError);
+    console.error("FreeLLMAPI proxy call failed:", proxyError);
     throw new Error("Failed to communicate with our culinary core. All provider connections failed.", { cause: proxyError });
   }
 }
