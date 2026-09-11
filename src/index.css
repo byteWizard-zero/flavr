@@ -1,9 +1,10 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Lora:ital,wght@0,500;0,600;1,400&display=swap');
 
-/* This single import handles all of Tailwind v4! */
+/* This single import handles all of Tailwind v4 */
 @import "tailwindcss";
 
-/* Let's explicitly define our premium editorial theme variables for v4 right here */
+@custom-variant dark (&:is(.dark, .dark *));
+
 @theme {
   --color-cream: #FDFBF7;
   --color-cream-dark: #F7F3E9;
@@ -29,9 +30,75 @@
   }
 }
 
+:root {
+  color-scheme: light;
+  --color-cream: #FDFBF7;
+  --color-cream-dark: #F7F3E9;
+  --color-orange-burnt: #C85A32;
+  --color-olive: #5F6F52;
+  --color-olive-light: #A9B388;
+  --color-charcoal: #2C3327;
+}
+
+html.dark,
+body.dark,
+[data-theme="dark"] {
+  color-scheme: dark;
+  --color-cream: #121511;
+  --color-cream-dark: #1A1E17;
+  --color-orange-burnt: #E26D45;
+  --color-olive: #7E9071;
+  --color-olive-light: #B4BE99;
+  --color-charcoal: #EDE8DE;
+}
+
+/* Graceful theme transitions for all structural, surface, and typographic elements */
+html,
+body,
+#root,
+div,
+section,
+header,
+footer,
+aside,
+main,
+nav,
+button,
+input,
+select,
+ul,
+li,
+p,
+span,
+h1, h2, h3, h4, h5, h6,
+svg {
+  transition-property: background-color, border-color, color, fill, stroke, box-shadow;
+  transition-duration: 350ms;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+}
+
 body {
   background-color: var(--color-cream);
   color: var(--color-charcoal);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Custom scrollbar for an editorial feel */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-olive) 25%, transparent);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--color-olive) 45%, transparent);
 }

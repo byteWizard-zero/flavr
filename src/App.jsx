@@ -27,6 +27,47 @@ export default function App() {
   
   const [selectedRecipe, setSelectedRecipe] = useState(null);
 
+  // Theme State (Dark / Light Mode)
+  const [theme, setTheme] = useState(() => {
+    const saved = localStorage.getItem('flavr_theme');
+    if (saved === 'dark' || saved === 'light') return saved;
+    return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  });
+
+  // Apply theme class gracefully to html and body
+  useEffect(() => {
+    const root = document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+      root.setAttribute('data-theme', 'dark');
+      document.body.classList.add('dark');
+      document.body.setAttribute('data-theme', 'dark');
+    } else {
+      root.classList.remove('dark');
+      root.removeAttribute('data-theme');
+      document.body.classList.remove('dark');
+      document.body.removeAttribute('data-theme');
+    }
+    localStorage.setItem('flavr_theme', theme);
+  }, [theme]);
+
+  // Sync with OS preference changes if no manual override was set
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    const handleChange = (e) => {
+      const stored = localStorage.getItem('flavr_theme');
+      if (!stored) {
+        setTheme(e.matches ? 'dark' : 'light');
+      }
+    };
+    mediaQuery.addEventListener?.('change', handleChange);
+    return () => mediaQuery.removeEventListener?.('change', handleChange);
+  }, []);
+
+  const toggleTheme = () => {
+    setTheme(prev => (prev === 'dark' ? 'light' : 'dark'));
+  };
+
   // Lazy State Initializations
   const [ingredients, setIngredients] = useState(() => {
     const saved = localStorage.getItem('flavr_pantry');
@@ -336,15 +377,17 @@ Generated beautifully via Flavr 🍳
   return (
     <div className="min-h-screen bg-cream text-charcoal font-sans flex flex-col md:flex-row relative overflow-x-hidden">
       
-      {/* TOAST WARNINGS */}
-      <div className={`fixed top-5 right-5 bg-charcoal text-cream px-5 py-3.5 rounded-lg shadow-2xl text-xs tracking-wide font-medium border border-orange-burnt/20 z-50 transition-all duration-300 transform ${toastMessage ? 'translate-x-0 opacity-100' : 'translate-x-12 opacity-0 pointer-events-none'}`}>
+      {/* TOAST NOTIFICATIONS */}
+      <div className={`fixed top-5 right-5 bg-charcoal text-[#FDFBF7] dark:bg-[#1C201A] dark:text-[#EDE8DE] dark:border dark:border-olive/30 px-5 py-3.5 rounded-lg shadow-2xl text-xs tracking-wide font-medium border border-orange-burnt/20 z-50 transition-all duration-300 transform ${toastMessage ? 'translate-x-0 opacity-100' : 'translate-x-12 opacity-0 pointer-events-none'}`}>
         ⚠️ {toastMessage}
       </div>
       
       {/* CONTROL INTERFACE PANEL */}
       <div className="w-full md:w-2/5 p-6 sm:p-8 md:p-12 bg-cream-dark border-b md:border-b-0 md:border-r border-olive/10 flex flex-col justify-between shrink-0 min-h-[45vh] md:min-h-screen">
         <div className="space-y-6 md:space-y-8">
-          <div className="flex justify-between items-start gap-4">
+          
+          {/* HEADER ROW WITH BRAND & CONTROLS */}
+          <div className="flex justify-between items-start gap-3">
             <div>
               <h1 className="font-serif text-3xl sm:text-4xl md:text-5xl font-medium text-charcoal tracking-tight mb-2">
                 Flavr
@@ -353,13 +396,57 @@ Generated beautifully via Flavr 🍳
                 Flip the kitchen script. Tell us what you have, we'll tell you what to cook.
               </p>
             </div>
-            <button
-              onClick={() => setIsSavedDrawerOpen(true)}
-              className="bg-cream hover:bg-cream-dark border border-olive/20 p-2.5 rounded-lg shadow-sm transition-all hover:border-orange-burnt active:scale-95 flex items-center gap-1.5 text-xs font-semibold shrink-0"
-              title="Open Favorite Recipes"
-            >
-              ⭐️ <span className="hidden sm:inline">Favorites ({savedRecipes.length})</span>
-            </button>
+
+            <div className="flex items-center gap-2 shrink-0">
+              {/* THEME TOGGLE SWITCH */}
+              <button
+                onClick={toggleTheme}
+                role="switch"
+                aria-checked={theme === 'dark'}
+                aria-label={theme === 'dark' ? "Switch to light mode" : "Switch to dark mode"}
+                title={theme === 'dark' ? "Switch to light mode" : "Switch to dark mode"}
+                className="bg-cream hover:bg-cream-dark border border-olive/20 dark:border-olive/30 px-3 py-2.5 rounded-lg shadow-sm transition-all hover:border-orange-burnt active:scale-95 flex items-center gap-2 text-xs font-semibold shrink-0 cursor-pointer group"
+              >
+                <div className="relative w-4 h-4 flex items-center justify-center">
+                  {/* Sun Icon */}
+                  <svg 
+                    className={`w-4 h-4 text-orange-burnt absolute transition-all duration-300 transform ${
+                      theme === 'dark' ? 'opacity-100 rotate-0 scale-100' : 'opacity-0 -rotate-90 scale-50 pointer-events-none'
+                    }`}
+                    fill="none" 
+                    viewBox="0 0 24 24" 
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                  {/* Moon Icon */}
+                  <svg 
+                    className={`w-4 h-4 text-olive absolute transition-all duration-300 transform ${
+                      theme === 'dark' ? 'opacity-0 rotate-90 scale-50 pointer-events-none' : 'opacity-100 rotate-0 scale-100'
+                    }`}
+                    fill="none" 
+                    viewBox="0 0 24 24" 
+                    stroke="currentColor"
+                    strokeWidth="2"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
+                  </svg>
+                </div>
+                <span className="hidden sm:inline text-charcoal/80 group-hover:text-charcoal transition-colors">
+                  {theme === 'dark' ? 'Light' : 'Dark'}
+                </span>
+              </button>
+
+              {/* FAVORITES BUTTON */}
+              <button
+                onClick={() => setIsSavedDrawerOpen(true)}
+                className="bg-cream hover:bg-cream-dark border border-olive/20 dark:border-olive/30 p-2.5 rounded-lg shadow-sm transition-all hover:border-orange-burnt active:scale-95 flex items-center gap-1.5 text-xs font-semibold shrink-0"
+                title="Open Favorite Recipes"
+              >
+                ⭐️ <span className="hidden sm:inline">Favorites ({savedRecipes.length})</span>
+              </button>
+            </div>
           </div>
 
           <div className="space-y-4">
@@ -385,16 +472,16 @@ Generated beautifully via Flavr 🍳
                 onKeyDown={handleKeyDown}
                 disabled={isLoading}
                 placeholder={isLoading ? "Generating recipes..." : "Type ingredient and hit Enter..."}
-                className="w-full bg-cream border border-olive/20 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-orange-burnt focus:ring-1 focus:ring-orange-burnt transition-all font-sans placeholder-charcoal/40 z-10 relative disabled:opacity-50"
+                className="w-full bg-cream border border-olive/20 dark:border-olive/30 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-orange-burnt focus:ring-1 focus:ring-orange-burnt transition-all font-sans placeholder-charcoal/40 z-10 relative disabled:opacity-50"
               />
 
               {/* SUGGESTIONS MENU */}
-              <ul className={`absolute left-0 right-0 mt-1 bg-cream border border-olive/10 rounded-lg shadow-lg max-h-48 overflow-y-auto z-40 text-sm transition-all duration-200 transform origin-top ${suggestions.length > 0 ? 'opacity-100 scale-y-100 translate-y-0' : 'opacity-0 scale-y-95 -translate-y-2 pointer-events-none'}`}>
+              <ul className={`absolute left-0 right-0 mt-1 bg-cream border border-olive/10 dark:border-olive/25 rounded-lg shadow-lg max-h-48 overflow-y-auto z-40 text-sm transition-all duration-200 transform origin-top ${suggestions.length > 0 ? 'opacity-100 scale-y-100 translate-y-0' : 'opacity-0 scale-y-95 -translate-y-2 pointer-events-none'}`}>
                 {suggestions.map((suggestion, idx) => (
                   <li 
                     key={idx}
                     onClick={() => !isLoading && addIngredientTag(suggestion)}
-                    className="px-4 py-2.5 hover:bg-cream-dark cursor-pointer text-charcoal/80 hover:text-orange-burnt transition-colors first:rounded-t-lg last:rounded-b-lg border-b border-cream-dark last:border-none"
+                    className="px-4 py-2.5 hover:bg-cream-dark cursor-pointer text-charcoal/80 hover:text-orange-burnt transition-colors first:rounded-t-lg last:rounded-b-lg border-b border-cream-dark dark:border-olive/10 last:border-none"
                   >
                     {suggestion}
                   </li>
@@ -407,7 +494,7 @@ Generated beautifully via Flavr 🍳
               {ingredients.map((item, index) => (
                 <span 
                   key={index}
-                  className="inline-flex items-center gap-1.5 bg-olive text-cream text-xs font-medium px-3 py-1.5 rounded-full shadow-sm animate-fade-in"
+                  className="inline-flex items-center gap-1.5 bg-olive text-white text-xs font-medium px-3 py-1.5 rounded-full shadow-sm animate-fade-in"
                 >
                   {item}
                   <button 
@@ -435,7 +522,7 @@ Generated beautifully via Flavr 🍳
                       setDietPreference(e.target.value);
                       localStorage.setItem('flavr_diet', e.target.value);
                     }}
-                    className="w-full bg-cream border border-olive/20 rounded-lg px-2.5 py-2 text-xs focus:outline-none focus:border-orange-burnt transition-all"
+                    className="w-full bg-cream border border-olive/20 dark:border-olive/30 rounded-lg px-2.5 py-2 text-xs focus:outline-none focus:border-orange-burnt transition-all"
                   >
                     <option value="none">No Restriction</option>
                     <option value="Vegetarian">Vegetarian</option>
@@ -453,7 +540,7 @@ Generated beautifully via Flavr 🍳
                       setMealTypePreference(e.target.value);
                       localStorage.setItem('flavr_meal', e.target.value);
                     }}
-                    className="w-full bg-cream border border-olive/20 rounded-lg px-2.5 py-2 text-xs focus:outline-none focus:border-orange-burnt transition-all"
+                    className="w-full bg-cream border border-olive/20 dark:border-olive/30 rounded-lg px-2.5 py-2 text-xs focus:outline-none focus:border-orange-burnt transition-all"
                   >
                     <option value="none">Any Meal</option>
                     <option value="Breakfast">Breakfast</option>
@@ -467,7 +554,7 @@ Generated beautifully via Flavr 🍳
             </div>
 
             {/* STAPLES DRAWER */}
-            <div className="border border-olive/10 rounded-xl bg-cream-dark/40 overflow-hidden transition-all duration-300">
+            <div className="border border-olive/10 dark:border-olive/20 rounded-xl bg-cream-dark/40 overflow-hidden transition-all duration-300">
               <button
                 onClick={() => setIsStaplesOpen(!isStaplesOpen)}
                 className="w-full flex justify-between items-center px-4 py-3 text-xs uppercase tracking-wider font-semibold text-charcoal/70 hover:bg-olive/5 transition-colors focus:outline-none"
@@ -488,7 +575,7 @@ Generated beautifully via Flavr 🍳
                               key={item}
                               onClick={() => !isAlreadyAdded && addIngredientTag(item)}
                               disabled={isAlreadyAdded}
-                              className={`text-[11px] px-2.5 py-1 rounded-md border transition-all duration-200 cursor-pointer ${isAlreadyAdded ? 'bg-olive/10 border-olive/20 text-olive/50 cursor-not-allowed' : 'bg-cream border-olive/15 hover:border-orange-burnt/60 hover:text-orange-burnt'}`}
+                              className={`text-[11px] px-2.5 py-1 rounded-md border transition-all duration-200 cursor-pointer ${isAlreadyAdded ? 'bg-olive/10 border-olive/20 text-olive/50 cursor-not-allowed' : 'bg-cream border-olive/15 dark:border-olive/25 hover:border-orange-burnt/60 hover:text-orange-burnt'}`}
                             >
                               + {item}
                             </button>
@@ -508,7 +595,7 @@ Generated beautifully via Flavr 🍳
           <button 
             onClick={handleFindRecipes}
             disabled={ingredients.length === 0 || isLoading}
-            className="w-full bg-orange-burnt text-cream py-4 rounded-lg font-serif tracking-wide text-base sm:text-lg hover:bg-orange-burnt/90 transition-all shadow-md disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            className="w-full bg-orange-burnt text-white py-4 rounded-lg font-serif tracking-wide text-base sm:text-lg hover:bg-orange-burnt/90 transition-all shadow-md disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
           >
             {isLoading ? (
               <>
@@ -532,10 +619,10 @@ Generated beautifully via Flavr 🍳
           )}
 
           {!isLoading && apiError && (
-            <div className="m-auto max-w-md w-full text-center space-y-4 p-6 bg-red-50 border border-red-200/40 rounded-xl animate-fade-in">
+            <div className="m-auto max-w-md w-full text-center space-y-4 p-6 bg-red-50 dark:bg-red-950/30 border border-red-200/40 dark:border-red-800/40 rounded-xl animate-fade-in">
               <span className="text-3xl">🥣</span>
-              <h3 className="font-serif text-lg sm:text-xl font-medium text-red-800">Composition Nudge</h3>
-              <p className="text-sm text-red-700/80 leading-relaxed">{apiError}</p>
+              <h3 className="font-serif text-lg sm:text-xl font-medium text-red-800 dark:text-red-300">Composition Nudge</h3>
+              <p className="text-sm text-red-700/80 dark:text-red-300/80 leading-relaxed">{apiError}</p>
             </div>
           )}
 
@@ -557,7 +644,7 @@ Generated beautifully via Flavr 🍳
               <div className="space-y-3">
                 <div className="flex flex-wrap gap-2 justify-between items-end">
                   <h3 className="text-xs uppercase tracking-wider font-semibold text-charcoal/50">Curated Menus</h3>
-                  {aiNudge && <span className="text-xs text-olive italic bg-olive/5 px-2 py-0.5 rounded">💡 {aiNudge}</span>}
+                  {aiNudge && <span className="text-xs text-olive italic bg-olive/5 dark:bg-olive/10 px-2 py-0.5 rounded">💡 {aiNudge}</span>}
                 </div>
                 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
@@ -567,12 +654,12 @@ Generated beautifully via Flavr 🍳
                       <div 
                         key={recipe.id}
                         onClick={() => setSelectedRecipe(recipe)}
-                        className={`p-4 sm:p-5 rounded-xl border transition-all cursor-pointer shadow-sm transform hover:-translate-y-0.5 active:translate-y-0 duration-200 ${isSelected ? 'bg-cream-dark border-orange-burnt ring-1 ring-orange-burnt' : 'bg-cream-dark/40 border-olive/10 hover:border-olive/30'}`}
+                        className={`p-4 sm:p-5 rounded-xl border transition-all cursor-pointer shadow-sm transform hover:-translate-y-0.5 active:translate-y-0 duration-200 ${isSelected ? 'bg-cream-dark border-orange-burnt ring-1 ring-orange-burnt' : 'bg-cream-dark/40 dark:bg-cream-dark/30 border-olive/10 dark:border-olive/20 hover:border-olive/30'}`}
                       >
                         <span className="text-[10px] font-semibold text-orange-burnt tracking-wide uppercase">{recipe.cuisine}</span>
                         <h4 className="font-serif font-medium text-base sm:text-lg text-charcoal mt-0.5 line-clamp-2 leading-snug">{recipe.name}</h4>
                         
-                        <div className="flex gap-3 text-xs text-charcoal/60 mt-4 pt-2 border-t border-charcoal/5">
+                        <div className="flex gap-3 text-xs text-charcoal/60 mt-4 pt-2 border-t border-charcoal/5 dark:border-charcoal/10">
                           <span>⏱️ {recipe.cookTime}</span>
                           <span>🔥 {recipe.difficulty}</span>
                         </div>
@@ -584,17 +671,17 @@ Generated beautifully via Flavr 🍳
 
               {/* Main Active Selection Card */}
               {selectedRecipe && (
-                <div className="bg-cream-dark/60 border border-olive/10 rounded-2xl p-5 sm:p-6 md:p-8 space-y-6 transition-all duration-300 shadow-sm animate-fade-in">
+                <div className="bg-cream-dark/60 dark:bg-cream-dark/40 border border-olive/10 dark:border-olive/20 rounded-2xl p-5 sm:p-6 md:p-8 space-y-6 transition-all duration-300 shadow-sm animate-fade-in">
                   
                   {/* Info Header */}
-                  <div className="border-b border-olive/10 pb-5 flex justify-between items-start gap-4">
+                  <div className="border-b border-olive/10 dark:border-olive/20 pb-5 flex justify-between items-start gap-4">
                     <div className="space-y-2">
                       <h2 className="font-serif text-2xl sm:text-3xl font-medium text-charcoal leading-tight">{selectedRecipe.name}</h2>
                       <p className="text-xs sm:text-sm text-charcoal/70 leading-relaxed italic font-sans">{selectedRecipe.description}</p>
                       
                       <div className="flex flex-wrap gap-2 pt-2">
-                        <span className="bg-olive/10 text-olive text-xs px-2.5 py-1 rounded-md font-medium">Calories: {selectedRecipe.nutritionalHighlights?.calories || "N/A"}</span>
-                        <span className="bg-olive/10 text-olive text-xs px-2.5 py-1 rounded-md font-medium">Protein: {selectedRecipe.nutritionalHighlights?.protein || "N/A"}</span>
+                        <span className="bg-olive/10 dark:bg-olive/20 text-olive text-xs px-2.5 py-1 rounded-md font-medium">Calories: {selectedRecipe.nutritionalHighlights?.calories || "N/A"}</span>
+                        <span className="bg-olive/10 dark:bg-olive/20 text-olive text-xs px-2.5 py-1 rounded-md font-medium">Protein: {selectedRecipe.nutritionalHighlights?.protein || "N/A"}</span>
                       </div>
                     </div>
                     
@@ -603,7 +690,7 @@ Generated beautifully via Flavr 🍳
                       <button 
                         onClick={() => toggleSaveRecipe(selectedRecipe)}
                         title={savedRecipes.some(r => r.id === selectedRecipe.id) ? "Remove from favorites" : "Save to favorites"}
-                        className={`bg-cream hover:bg-cream-dark border border-olive/20 p-2.5 rounded-lg shadow-xs transition-all hover:border-orange-burnt active:scale-95 text-sm`}
+                        className="bg-cream hover:bg-cream-dark border border-olive/20 dark:border-olive/30 p-2.5 rounded-lg shadow-xs transition-all hover:border-orange-burnt active:scale-95 text-sm cursor-pointer"
                       >
                         {savedRecipes.some(r => r.id === selectedRecipe.id) ? '⭐' : '☆'}
                       </button>
@@ -612,7 +699,7 @@ Generated beautifully via Flavr 🍳
                       <button 
                         onClick={handleCopyRecipe}
                         title="Copy full blueprint to clipboard"
-                        className="bg-cream hover:bg-cream-dark border border-olive/20 text-charcoal p-2.5 rounded-lg shadow-xs transition-all hover:border-orange-burnt active:scale-95"
+                        className="bg-cream hover:bg-cream-dark border border-olive/20 dark:border-olive/30 text-charcoal p-2.5 rounded-lg shadow-xs transition-all hover:border-orange-burnt active:scale-95 cursor-pointer"
                       >
                         📋
                       </button>
@@ -625,7 +712,7 @@ Generated beautifully via Flavr 🍳
                       <h5 className="text-xs uppercase tracking-wider font-semibold text-charcoal/50">Pantry Matches Used</h5>
                       <div className="flex flex-wrap gap-1.5">
                         {selectedRecipe.matchedIngredients?.map((ing, i) => (
-                          <span key={i} className="bg-olive text-cream text-[11px] sm:text-xs px-2.5 py-1 rounded-md font-medium shadow-sm">✓ {ing}</span>
+                          <span key={i} className="bg-olive text-white text-[11px] sm:text-xs px-2.5 py-1 rounded-md font-medium shadow-sm">✓ {ing}</span>
                         ))}
                       </div>
                     </div>
@@ -644,7 +731,7 @@ Generated beautifully via Flavr 🍳
 
                   {/* Substitutions */}
                   {selectedRecipe.substitutionTips?.length > 0 && (
-                    <div className="bg-cream border-l-4 border-orange-burnt p-4 rounded-r-lg text-xs sm:text-sm text-charcoal/80 space-y-1 shadow-xs">
+                    <div className="bg-cream dark:bg-cream-dark/50 border-l-4 border-orange-burnt p-4 rounded-r-lg text-xs sm:text-sm text-charcoal/80 space-y-1 shadow-xs">
                       <span className="font-semibold text-orange-burnt uppercase tracking-wider text-[10px] block">Substitution Blueprint</span>
                       <p className="italic">{selectedRecipe.substitutionTips[0]}</p>
                     </div>
@@ -656,15 +743,15 @@ Generated beautifully via Flavr 🍳
                       <h5 className="text-xs uppercase tracking-wider font-semibold text-charcoal/50">Culinary Execution Steps</h5>
                       <button
                         onClick={startCookMode}
-                        className="bg-orange-burnt text-cream text-xs px-3.5 py-1.5 rounded-lg font-serif font-semibold hover:bg-orange-burnt/90 transition-all shadow-xs flex items-center gap-1.5"
+                        className="bg-orange-burnt text-white text-xs px-3.5 py-1.5 rounded-lg font-serif font-semibold hover:bg-orange-burnt/90 transition-all shadow-xs flex items-center gap-1.5 cursor-pointer"
                       >
                         🧑‍🍳 Start Cooking
                       </button>
                     </div>
                     <ol className="space-y-3">
                       {selectedRecipe.instructions?.map((step, idx) => (
-                        <li key={idx} className="flex gap-3 sm:gap-4 items-start text-xs sm:text-sm text-charcoal/90 leading-relaxed bg-cream/60 p-4 rounded-xl border border-olive/5 shadow-xs transition-all duration-200">
-                          <span className="bg-charcoal text-cream font-serif text-xs rounded-full w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center shrink-0 mt-0.5 font-bold shadow-sm">
+                        <li key={idx} className="flex gap-3 sm:gap-4 items-start text-xs sm:text-sm text-charcoal/90 leading-relaxed bg-cream/60 dark:bg-cream/40 p-4 rounded-xl border border-olive/5 dark:border-olive/15 shadow-xs transition-all duration-200">
+                          <span className="bg-charcoal text-white dark:bg-[#252C21] dark:text-[#EDE8DE] dark:border dark:border-olive/20 font-serif text-xs rounded-full w-5 h-5 sm:w-6 sm:h-6 flex items-center justify-center shrink-0 mt-0.5 font-bold shadow-sm">
                             {idx + 1}
                           </span>
                           <p className="pt-0.5">{step.replace(/^\*\*\d+\.\s*.*?\*\*\s*/, '')}</p> 
@@ -682,22 +769,25 @@ Generated beautifully via Flavr 🍳
         </div>
 
         {/* FOOTER */}
-        <div className="pt-8 border-t border-olive/10 flex flex-col sm:flex-row justify-between items-center text-xs text-charcoal/40 gap-2">
+        <div className="pt-8 border-t border-olive/10 dark:border-olive/20 flex flex-col sm:flex-row justify-between items-center text-xs text-charcoal/40 gap-3">
           <span>Flavr — Culinary Simplicity</span>
+          <span className="text-charcoal/60 dark:text-charcoal/60 font-medium">
+            made with ❤️ by shreyansh
+          </span>
           <span>Powered by FreeLLMAPI Proxy</span>
         </div>
       </div>
 
       {/* SAVED RECIPES DRAWER */}
-      <div className={`fixed top-0 right-0 h-full w-full sm:w-[400px] bg-cream shadow-2xl border-l border-olive/10 z-50 transition-all duration-300 transform ${isSavedDrawerOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+      <div className={`fixed top-0 right-0 h-full w-full sm:w-[400px] bg-cream shadow-2xl border-l border-olive/10 dark:border-olive/20 z-50 transition-all duration-300 transform ${isSavedDrawerOpen ? 'translate-x-0' : 'translate-x-full'}`}>
         <div className="p-6 h-full flex flex-col justify-between">
-          <div className="flex justify-between items-center border-b border-olive/10 pb-4">
+          <div className="flex justify-between items-center border-b border-olive/10 dark:border-olive/20 pb-4">
             <h3 className="font-serif text-xl font-medium text-charcoal flex items-center gap-2">
               ⭐️ Favorite Recipes
             </h3>
             <button 
               onClick={() => setIsSavedDrawerOpen(false)}
-              className="text-2xl text-charcoal hover:text-orange-burnt transition-colors focus:outline-none"
+              className="text-2xl text-charcoal hover:text-orange-burnt transition-colors focus:outline-none cursor-pointer"
             >
               ×
             </button>
@@ -714,7 +804,7 @@ Generated beautifully via Flavr 🍳
               savedRecipes.map((recipe) => (
                 <div 
                   key={recipe.id}
-                  className="p-4 rounded-xl border border-olive/10 bg-cream-dark/50 hover:bg-cream-dark transition-all cursor-pointer relative group"
+                  className="p-4 rounded-xl border border-olive/10 dark:border-olive/20 bg-cream-dark/50 hover:bg-cream-dark transition-all cursor-pointer relative group"
                 >
                   <div onClick={() => {
                     setRecipes([recipe, ...recipes.filter(r => r.id !== recipe.id)]);
@@ -744,10 +834,10 @@ Generated beautifully via Flavr 🍳
             )}
           </div>
           
-          <div className="border-t border-olive/10 pt-4">
+          <div className="border-t border-olive/10 dark:border-olive/20 pt-4">
             <button 
               onClick={() => setIsSavedDrawerOpen(false)}
-              className="w-full bg-charcoal text-cream py-3 rounded-lg text-sm font-medium hover:bg-charcoal/90 transition-all shadow-md"
+              className="w-full bg-charcoal text-white dark:bg-[#252C21] dark:text-[#EDE8DE] dark:border dark:border-olive/20 py-3 rounded-lg text-sm font-medium hover:bg-charcoal/90 dark:hover:bg-[#2E362A] transition-all shadow-md cursor-pointer"
             >
               Close Favorites
             </button>
@@ -759,14 +849,14 @@ Generated beautifully via Flavr 🍳
       {isSavedDrawerOpen && (
         <div 
           onClick={() => setIsSavedDrawerOpen(false)}
-          className="fixed inset-0 bg-charcoal/40 backdrop-blur-xs z-40 transition-opacity"
+          className="fixed inset-0 bg-charcoal/40 dark:bg-black/60 backdrop-blur-xs z-40 transition-opacity"
         />
       )}
 
       {/* INTERACTIVE COOKING MODE OVERLAY */}
       {isCookModeOpen && activeCookRecipe && (
-        <div className="fixed inset-0 bg-charcoal/90 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 transition-all duration-300">
-          <div className="bg-cream w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col justify-between overflow-hidden max-h-[90vh]">
+        <div className="fixed inset-0 bg-charcoal/90 dark:bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 transition-all duration-300">
+          <div className="bg-cream w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col justify-between overflow-hidden max-h-[90vh] border border-olive/10 dark:border-olive/25">
             
             {/* Header */}
             <div className="bg-cream-dark p-5 border-b border-olive/15 flex justify-between items-center">
@@ -780,7 +870,7 @@ Generated beautifully via Flavr 🍳
                   stopSpeaking();
                   setIsCookModeOpen(false);
                 }}
-                className="text-2xl text-charcoal hover:text-orange-burnt transition-colors focus:outline-none"
+                className="text-2xl text-charcoal hover:text-orange-burnt transition-colors focus:outline-none cursor-pointer"
               >
                 ×
               </button>
@@ -798,7 +888,7 @@ Generated beautifully via Flavr 🍳
             <div className="flex-grow p-6 sm:p-8 overflow-y-auto flex flex-col items-center justify-start space-y-6">
               
               {/* Step counter */}
-              <span className="bg-charcoal text-cream font-serif text-sm px-3 py-1 rounded-full font-bold">
+              <span className="bg-charcoal text-white dark:bg-[#252C21] dark:text-[#EDE8DE] dark:border dark:border-olive/20 font-serif text-sm px-3 py-1 rounded-full font-bold">
                 Step {activeCookStep + 1} of {activeCookRecipe.instructions.length}
               </span>
 
@@ -809,7 +899,7 @@ Generated beautifully via Flavr 🍳
 
               {/* Timer Dashboard (Conditionally rendered) */}
               {timerMaxSeconds > 0 && (
-                <div className="flex flex-col items-center gap-4 bg-cream-dark/50 p-6 rounded-2xl border border-olive/10 w-full max-w-sm">
+                <div className="flex flex-col items-center gap-4 bg-cream-dark/50 dark:bg-cream-dark/30 p-6 rounded-2xl border border-olive/10 dark:border-olive/20 w-full max-w-sm">
                   <div className="relative flex items-center justify-center">
                     {/* Circular Timer SVG */}
                     <svg className="w-32 h-32 transform -rotate-90">
@@ -817,7 +907,8 @@ Generated beautifully via Flavr 🍳
                         cx="64"
                         cy="64"
                         r={radius}
-                        stroke="rgba(95, 111, 82, 0.1)"
+                        stroke="currentColor"
+                        className="text-olive/15 dark:text-olive/25"
                         strokeWidth="6"
                         fill="transparent"
                       />
@@ -825,13 +916,13 @@ Generated beautifully via Flavr 🍳
                         cx="64"
                         cy="64"
                         r={radius}
-                        stroke="#C85A32"
+                        stroke="currentColor"
+                        className="text-orange-burnt transition-all duration-1000 ease-linear"
                         strokeWidth="6"
                         fill="transparent"
                         strokeDasharray={circumference}
                         strokeDashoffset={strokeDashoffset}
                         strokeLinecap="round"
-                        className="transition-all duration-1000 ease-linear"
                       />
                     </svg>
                     
@@ -848,13 +939,13 @@ Generated beautifully via Flavr 🍳
                   <div className="flex gap-2">
                     <button
                       onClick={isTimerRunning ? pauseTimer : startTimer}
-                      className="px-4 py-2 bg-charcoal text-cream rounded-md text-xs font-semibold hover:bg-charcoal/90 transition-all flex items-center gap-1.5"
+                      className="px-4 py-2 bg-charcoal text-white dark:bg-[#252C21] dark:text-[#EDE8DE] dark:border dark:border-olive/20 rounded-md text-xs font-semibold hover:bg-charcoal/90 dark:hover:bg-[#2E362A] transition-all flex items-center gap-1.5 cursor-pointer"
                     >
                       {isTimerRunning ? '⏸️ Pause' : '▶️ Start'}
                     </button>
                     <button
                       onClick={resetTimer}
-                      className="px-4 py-2 border border-olive/20 text-charcoal rounded-md text-xs font-semibold hover:bg-cream-dark transition-all"
+                      className="px-4 py-2 border border-olive/20 text-charcoal rounded-md text-xs font-semibold hover:bg-cream-dark transition-all cursor-pointer"
                     >
                       🔄 Reset
                     </button>
@@ -874,7 +965,7 @@ Generated beautifully via Flavr 🍳
                   resetTimerForStep(activeCookRecipe.instructions[prevIdx]);
                 }}
                 disabled={activeCookStep === 0}
-                className="px-4 py-2.5 rounded-lg border border-olive/20 text-xs font-semibold hover:bg-cream disabled:opacity-30 disabled:cursor-not-allowed transition-all"
+                className="px-4 py-2.5 rounded-lg border border-olive/20 text-xs font-semibold hover:bg-cream disabled:opacity-30 disabled:cursor-not-allowed transition-all cursor-pointer"
               >
                 ◀ Previous
               </button>
@@ -887,7 +978,7 @@ Generated beautifully via Flavr 🍳
                     speakStep(activeCookRecipe.instructions[activeCookStep]);
                   }
                 }}
-                className={`p-2.5 rounded-full border transition-all flex items-center justify-center ${isSpeaking ? 'bg-orange-burnt/10 border-orange-burnt text-orange-burnt animate-pulse' : 'bg-cream border-olive/20 hover:border-orange-burnt hover:text-orange-burnt'}`}
+                className={`p-2.5 rounded-full border transition-all flex items-center justify-center cursor-pointer ${isSpeaking ? 'bg-orange-burnt/10 border-orange-burnt text-orange-burnt animate-pulse' : 'bg-cream border-olive/20 hover:border-orange-burnt hover:text-orange-burnt'}`}
                 title={isSpeaking ? "Stop speaking" : "Speak step instructions"}
               >
                 🔊
@@ -905,7 +996,7 @@ Generated beautifully via Flavr 🍳
                     resetTimerForStep(activeCookRecipe.instructions[nextIdx]);
                   }
                 }}
-                className="px-5 py-2.5 bg-orange-burnt text-cream rounded-lg text-xs font-semibold hover:bg-orange-burnt/90 transition-all shadow-sm"
+                className="px-5 py-2.5 bg-orange-burnt text-white rounded-lg text-xs font-semibold hover:bg-orange-burnt/90 transition-all shadow-sm cursor-pointer"
               >
                 {activeCookStep === activeCookRecipe.instructions.length - 1 ? 'Finish 🎉' : 'Next Step ▶'}
               </button>
