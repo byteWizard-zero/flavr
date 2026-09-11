@@ -1,5 +1,9 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import gsap from 'gsap';
+import { useGSAP } from '@gsap/react';
 import { generateRecipesFromPantry } from './geminiService';
+
+gsap.registerPlugin(useGSAP);
 
 const COMMON_INGREDIENTS = [
   "onion", "garlic", "ginger", "tomato", "potato", "carrot", "cabbage", "spinach", 
@@ -13,6 +17,45 @@ const PANTRY_STAPLES = {
   "Vegetables 🥦": ["onion", "garlic", "ginger", "tomato", "potato", "carrot", "spinach"],
   "Dairy & Fats 🧈": ["butter", "milk", "cheese", "yogurt", "heavy cream", "olive oil"],
   "Pantry & Grains 🌾": ["rice", "pasta", "flour", "bread", "sugar", "salt", "black pepper"]
+};
+
+const PANTRY_PRESETS = [
+  { id: 'dorm', name: 'Late-Night Dorm', icon: '⚡', items: ['noodles', 'egg', 'soy sauce', 'garlic'] },
+  { id: 'breakfast', name: 'Morning Rush', icon: '🍳', items: ['egg', 'bread', 'butter', 'cheese'] },
+  { id: 'fitness', name: 'Post-Workout Fuel', icon: '🏋️', items: ['chicken', 'rice', 'spinach', 'olive oil'] },
+  { id: 'italian', name: 'Rustic Italian', icon: '🍅', items: ['pasta', 'tomato', 'garlic', 'olive oil'] }
+];
+
+const KITCHEN_EQUIPMENT = [
+  { id: 'stovetop', label: 'Stovetop (Pan/Pot)', icon: '🍳', desc: 'Standard stovetop, fry pan, skillet, or boiling pot' },
+  { id: 'air_fryer', label: 'Air Fryer', icon: '🌬️', desc: 'Convection air fryer, roasting & crispy baskets' },
+  { id: 'microwave', label: 'Microwave', icon: '🌀', desc: 'Microwave heating, steaming & mug meals' },
+  { id: 'kettle', label: 'Electric Kettle', icon: '⚡', desc: 'Boiling water, steeped noodles, poached eggs, hotel/dorm meals' },
+  { id: 'oven', label: 'Oven / Baking', icon: '🔥', desc: 'Baking sheet, casserole dish, roasting pan' },
+  { id: 'rice_cooker', label: 'Rice Cooker', icon: '🍚', desc: 'One-pot rice cooker steamed meals & porridges' },
+  { id: 'toaster', label: 'Toaster / Press', icon: '🥪', desc: 'Slot toaster or sandwich press / panini grill' },
+  { id: 'no_cook', label: 'No-Cook (No Heat)', icon: '🥗', desc: 'No heat required (salads, wraps, cold dips & bowls)' }
+];
+
+const getEquipmentIcon = (name = '') => {
+  const lower = (name || '').toLowerCase();
+  if (lower.includes('kettle')) return '⚡';
+  if (lower.includes('air fryer') || lower.includes('airfryer')) return '🌬️';
+  if (lower.includes('microwave')) return '🌀';
+  if (lower.includes('oven') || lower.includes('bake') || lower.includes('roast')) return '🔥';
+  if (lower.includes('rice cooker')) return '🍚';
+  if (lower.includes('toast') || lower.includes('press') || lower.includes('panini')) return '🥪';
+  if (lower.includes('no-cook') || lower.includes('raw') || lower.includes('salad') || lower.includes('cold')) return '🥗';
+  return '🍳';
+};
+
+const scaleNutrient = (str, multiplier = 1) => {
+  if (!str) return 'N/A';
+  if (multiplier === 1) return str;
+  return str.replace(/(\d+(?:\.\d+)?)/g, (match) => {
+    const val = parseFloat(match);
+    return Math.round(val * multiplier);
+  });
 };
 
 export default function App() {
@@ -84,6 +127,19 @@ export default function App() {
     return saved || 'none';
   });
 
+  const [selectedEquipment, setSelectedEquipment] = useState(() => {
+    try {
+      const saved = localStorage.getItem('flavr_equipment');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {
+      // fallback
+    }
+    return ['stovetop'];
+  });
+
   const [savedRecipes, setSavedRecipes] = useState(() => {
     const saved = localStorage.getItem('flavr_saved_recipes');
     return saved ? JSON.parse(saved) : [];
@@ -141,6 +197,109 @@ export default function App() {
       if (intervalId) clearInterval(intervalId);
     };
   }, [isTimerRunning, timerSeconds, showToast]);
+
+  // Industry-Grade Functional States
+  const [servingsMultiplier, setServingsMultiplier] = useState(1);
+  const [checkedMissing, setCheckedMissing] = useState({});
+  const [favoritesSearch, setFavoritesSearch] = useState('');
+
+  // Scoped DOM Refs for GSAP
+  const sidebarRef = useRef(null);
+  const viewportRef = useRef(null);
+  const curatedGridRef = useRef(null);
+  const activeCardRef = useRef(null);
+  const nudgeCardRef = useRef(null);
+  const favoritesDrawerRef = useRef(null);
+  const cookModalRef = useRef(null);
+  const toastRef = useRef(null);
+
+  // Reset portion multiplier & checklist when active recipe switches
+  useEffect(() => {
+    setServingsMultiplier(1);
+    setCheckedMissing({});
+  }, [selectedRecipe?.id]);
+
+  // Filter favorites by search query
+  const filteredFavorites = useMemo(() => {
+    if (!favoritesSearch.trim()) return savedRecipes;
+    const q = favoritesSearch.toLowerCase().trim();
+    return savedRecipes.filter(recipe => 
+      recipe.name?.toLowerCase().includes(q) ||
+      recipe.cuisine?.toLowerCase().includes(q) ||
+      recipe.equipment?.toLowerCase().includes(q) ||
+      recipe.description?.toLowerCase().includes(q)
+    );
+  }, [savedRecipes, favoritesSearch]);
+
+  // GSAP Animations
+  useGSAP(() => {
+    gsap.from('.gsap-hero', {
+      y: 18,
+      opacity: 0,
+      duration: 0.55,
+      stagger: 0.08,
+      ease: 'power2.out'
+    });
+  }, { scope: sidebarRef });
+
+  useGSAP(() => {
+    if (recipes && recipes.length > 0) {
+      gsap.fromTo('.curated-card',
+        { y: 22, opacity: 0, scale: 0.97 },
+        { y: 0, opacity: 1, scale: 1, duration: 0.45, stagger: 0.08, ease: 'power2.out', clearProps: 'transform' }
+      );
+    }
+  }, { dependencies: [recipes], scope: viewportRef, revertOnUpdate: true });
+
+  useGSAP(() => {
+    if (selectedRecipe && activeCardRef.current) {
+      gsap.fromTo(activeCardRef.current,
+        { y: 16, opacity: 0 },
+        { y: 0, opacity: 1, duration: 0.35, ease: 'power2.out', clearProps: 'transform' }
+      );
+    }
+  }, { dependencies: [selectedRecipe?.id], scope: viewportRef, revertOnUpdate: true });
+
+  useGSAP(() => {
+    if (apiError && nudgeCardRef.current) {
+      const tl = gsap.timeline();
+      tl.fromTo(nudgeCardRef.current,
+        { scale: 0.88, y: -20, opacity: 0 },
+        { scale: 1, y: 0, opacity: 1, duration: 0.5, ease: 'back.out(1.5)' }
+      ).fromTo('.chef-emblem',
+        { scale: 0.5, rotation: -20 },
+        { scale: 1, rotation: 0, duration: 0.45, ease: 'elastic.out(1.2, 0.5)' },
+        '-=0.25'
+      );
+    }
+  }, { dependencies: [apiError], scope: viewportRef, revertOnUpdate: true });
+
+  useGSAP(() => {
+    if (toastMessage && toastRef.current) {
+      gsap.fromTo(toastRef.current,
+        { y: -16, opacity: 0, scale: 0.94 },
+        { y: 0, opacity: 1, scale: 1, duration: 0.3, ease: 'back.out(1.5)' }
+      );
+    }
+  }, { dependencies: [toastMessage] });
+
+  useGSAP(() => {
+    if (isSavedDrawerOpen && favoritesDrawerRef.current) {
+      gsap.fromTo(favoritesDrawerRef.current,
+        { x: '100%' },
+        { x: '0%', duration: 0.35, ease: 'power3.out' }
+      );
+    }
+  }, { dependencies: [isSavedDrawerOpen] });
+
+  useGSAP(() => {
+    if (isCookModeOpen && cookModalRef.current) {
+      gsap.fromTo(cookModalRef.current,
+        { scale: 0.92, opacity: 0, y: 15 },
+        { scale: 1, opacity: 1, y: 0, duration: 0.35, ease: 'power2.out' }
+      );
+    }
+  }, { dependencies: [isCookModeOpen] });
 
   const savePantryToStorage = (newIngredients) => {
     localStorage.setItem('flavr_pantry', JSON.stringify(newIngredients));
@@ -222,6 +381,23 @@ export default function App() {
     showToast("Pantry reset successfully!");
   };
 
+  const toggleEquipment = (id) => {
+    setSelectedEquipment((prev) => {
+      let updated;
+      if (prev.includes(id)) {
+        if (prev.length === 1) {
+          showToast("Please keep at least one kitchen appliance selected!");
+          return prev;
+        }
+        updated = prev.filter(item => item !== id);
+      } else {
+        updated = [...prev, id];
+      }
+      localStorage.setItem('flavr_equipment', JSON.stringify(updated));
+      return updated;
+    });
+  };
+
   const toggleSaveRecipe = (recipe) => {
     setSavedRecipes((prev) => {
       const isAlreadySaved = prev.some(r => r.id === recipe.id);
@@ -238,22 +414,65 @@ export default function App() {
     });
   };
 
-  const handleCopyRecipe = () => {
+  const applyPreset = (items) => {
+    setIngredients(items);
+    savePantryToStorage(items);
+    showToast(`Loaded ${items.length} items from preset!`);
+  };
+
+  const toggleMissingItem = (item) => {
+    setCheckedMissing(prev => ({
+      ...prev,
+      [item]: !prev[item]
+    }));
+  };
+
+  const copyShoppingList = async () => {
+    if (!selectedRecipe?.missingIngredients?.length) return;
+    const items = selectedRecipe.missingIngredients.map(item => 
+      `${checkedMissing[item] ? '☑' : '☐'} ${item}`
+    ).join('\n');
+    const text = `🛒 FLAVR SHOPPING LIST (${selectedRecipe.name.toUpperCase()}):\n${items}\n\nPrepared with Flavr 🍳`;
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = text;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      showToast("Shopping list copied to clipboard!");
+    } catch {
+      showToast("Shopping list ready!");
+    }
+  };
+
+  const handlePrintRecipe = () => {
+    window.print();
+  };
+
+  const handleCopyRecipe = async () => {
     if (!selectedRecipe) return;
 
-    const formattedText = `
-🍳 RECIPE BLUEPRINT: ${selectedRecipe.name.toUpperCase()}
-✨ Description: ${selectedRecipe.description}
-⏱️ Cook Time: ${selectedRecipe.cookTime} | 🔥 Difficulty: ${selectedRecipe.difficulty}
+    const scaledCal = scaleNutrient(selectedRecipe.nutritionalHighlights?.calories, servingsMultiplier);
+    const scaledPro = scaleNutrient(selectedRecipe.nutritionalHighlights?.protein, servingsMultiplier);
 
-📊 NUTRITION:
-• Calories: ${selectedRecipe.nutritionalHighlights?.calories || 'N/A'}
-• Protein: ${selectedRecipe.nutritionalHighlights?.protein || 'N/A'}
+    const formattedText = `
+🍳 RECIPE BLUEPRINT: ${selectedRecipe.name.toUpperCase()} (${servingsMultiplier}x Servings)
+✨ Description: ${selectedRecipe.description}
+⏱️ Cook Time: ${selectedRecipe.cookTime} | 🔥 Difficulty: ${selectedRecipe.difficulty} | 🏷️ Gear: ${selectedRecipe.equipment || 'Standard Cookware'}
+
+📊 NUTRITION (${servingsMultiplier} ${servingsMultiplier === 1 ? 'serving' : 'servings'}):
+• Calories: ${scaledCal}
+• Protein: ${scaledPro}
 
 ✓ MATCHED INGREDIENTS USED:
 ${selectedRecipe.matchedIngredients?.map(ing => `  - ${ing}`).join('\n')}
 
-${selectedRecipe.missingIngredients?.length > 0 ? `➕ EXTRA MINOR ITEMS NEEDED:\n${selectedRecipe.missingIngredients.map(ing => `  - ${ing}`).join('\n')}\n` : ''}
+${selectedRecipe.missingIngredients?.length > 0 ? `➕ EXTRA MINOR ITEMS NEEDED:\n${selectedRecipe.missingIngredients.map(ing => `  - ${checkedMissing[ing] ? '[✓]' : '[ ]'} ${ing}`).join('\n')}\n` : ''}
 💡 SUBSTITUTION BLUEPRINT:
 ${selectedRecipe.substitutionTips?.[0] || 'No substitutions needed.'}
 
@@ -263,8 +482,21 @@ ${selectedRecipe.instructions?.map((step, idx) => `${idx + 1}. ${step.replace(/^
 Generated beautifully via Flavr 🍳
     `.trim();
 
-    navigator.clipboard.writeText(formattedText);
-    showToast("Recipe blueprint copied to clipboard!");
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(formattedText);
+      } else {
+        const textarea = document.createElement('textarea');
+        textarea.value = formattedText;
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textarea);
+      }
+      showToast("Recipe blueprint copied to clipboard!");
+    } catch {
+      showToast("Recipe blueprint ready!");
+    }
   };
 
   const handleFindRecipes = async () => {
@@ -274,13 +506,22 @@ Generated beautifully via Flavr 🍳
     setSelectedRecipe(null);
     
     try {
+      const equipmentLabels = selectedEquipment.map(id => {
+        const item = KITCHEN_EQUIPMENT.find(e => e.id === id);
+        return item ? item.label : id;
+      });
+
       const data = await generateRecipesFromPantry(ingredients, {
         diet: dietPreference,
-        mealType: mealTypePreference
+        mealType: mealTypePreference,
+        equipment: equipmentLabels
       });
       
       if (data.sanityCheck && !data.sanityCheck.isValidCombination) {
-        setApiError("Hmm, our chef engine thinks those ingredients are highly unlikely to make a cohesive dish. Try adding a baseline pantry staple!");
+        setApiError(
+          data.sanityCheck.nudgeMessage || 
+          "Our chef inspected those ingredients and halted cooking! Please bring real, edible ingredients to the kitchen."
+        );
         setRecipes([]);
       } else {
         setRecipes(data.recipes || []);
@@ -378,16 +619,22 @@ Generated beautifully via Flavr 🍳
     <div className="min-h-screen bg-cream text-charcoal font-sans flex flex-col md:flex-row relative overflow-x-hidden">
       
       {/* TOAST NOTIFICATIONS */}
-      <div className={`fixed top-5 right-5 bg-charcoal text-[#FDFBF7] dark:bg-[#1C201A] dark:text-[#EDE8DE] dark:border dark:border-olive/30 px-5 py-3.5 rounded-lg shadow-2xl text-xs tracking-wide font-medium border border-orange-burnt/20 z-50 transition-all duration-300 transform ${toastMessage ? 'translate-x-0 opacity-100' : 'translate-x-12 opacity-0 pointer-events-none'}`}>
+      <div 
+        ref={toastRef} 
+        className={`fixed top-5 right-5 bg-charcoal text-[#FDFBF7] dark:bg-[#1C201A] dark:text-[#EDE8DE] dark:border dark:border-olive/30 px-5 py-3.5 rounded-lg shadow-2xl text-xs tracking-wide font-medium border border-orange-burnt/20 z-50 transition-opacity duration-300 ${toastMessage ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+      >
         ⚠️ {toastMessage}
       </div>
       
       {/* CONTROL INTERFACE PANEL */}
-      <div className="w-full md:w-2/5 p-6 sm:p-8 md:p-12 bg-cream-dark border-b md:border-b-0 md:border-r border-olive/10 flex flex-col justify-between shrink-0 min-h-[45vh] md:min-h-screen">
+      <div 
+        ref={sidebarRef} 
+        className="w-full md:w-2/5 p-6 sm:p-8 md:p-12 bg-cream-dark border-b md:border-b-0 md:border-r border-olive/10 flex flex-col justify-between shrink-0 min-h-[45vh] md:min-h-screen no-print"
+      >
         <div className="space-y-6 md:space-y-8">
           
           {/* HEADER ROW WITH BRAND & CONTROLS */}
-          <div className="flex justify-between items-start gap-3">
+          <div className="flex justify-between items-start gap-3 gsap-hero">
             <div>
               <h1 className="font-serif text-3xl sm:text-4xl md:text-5xl font-medium text-charcoal tracking-tight mb-2">
                 Flavr
@@ -508,6 +755,31 @@ Generated beautifully via Flavr 🍳
               ))}
             </div>
 
+            {/* PANTRY PRESETS QUICK STARTERS */}
+            <div className="pt-1 gsap-hero">
+              <div className="flex items-center justify-between mb-1.5">
+                <span className="text-[10px] uppercase tracking-wider font-semibold text-charcoal/50">
+                  Quick Starter Packs
+                </span>
+                <span className="text-[10px] text-charcoal/40 italic">1-click load</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {PANTRY_PRESETS.map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => applyPreset(preset.items)}
+                    disabled={isLoading}
+                    className="text-[11px] px-2.5 py-1 rounded-md border border-olive/20 dark:border-olive/30 bg-cream/70 hover:bg-cream dark:bg-cream-dark/40 hover:border-orange-burnt/60 hover:text-orange-burnt transition-all flex items-center gap-1 cursor-pointer group disabled:opacity-40"
+                    title={`Loads: ${preset.items.join(', ')}`}
+                  >
+                    <span>{preset.icon}</span>
+                    <span className="font-medium text-charcoal/80 group-hover:text-orange-burnt">{preset.name}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {/* PREFERENCES SECTION */}
             <div className="space-y-3 pt-2">
               <label className="block text-xs uppercase tracking-wider font-semibold text-charcoal/60">
@@ -550,6 +822,77 @@ Generated beautifully via Flavr 🍳
                     <option value="Dessert">Dessert</option>
                   </select>
                 </div>
+              </div>
+            </div>
+
+            {/* KITCHEN APPLIANCES & GEAR SECTION */}
+            <div className="space-y-2.5 pt-2">
+              <div className="flex justify-between items-center">
+                <label className="block text-xs uppercase tracking-wider font-semibold text-charcoal/60">
+                  Kitchen Gear & Appliances
+                </label>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] text-olive font-semibold bg-olive/10 dark:bg-olive/20 px-2 py-0.5 rounded-full">
+                    {selectedEquipment.length} active
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const allIds = KITCHEN_EQUIPMENT.map(e => e.id);
+                      setSelectedEquipment(allIds);
+                      localStorage.setItem('flavr_equipment', JSON.stringify(allIds));
+                    }}
+                    className="text-[10px] text-charcoal/50 hover:text-orange-burnt transition-colors cursor-pointer"
+                    title="Select all appliances"
+                  >
+                    All
+                  </button>
+                  <span className="text-[10px] text-charcoal/30">•</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedEquipment(['stovetop']);
+                      localStorage.setItem('flavr_equipment', JSON.stringify(['stovetop']));
+                      showToast("Reset equipment to standard stovetop.");
+                    }}
+                    className="text-[10px] text-charcoal/50 hover:text-orange-burnt transition-colors cursor-pointer"
+                    title="Reset to default stovetop"
+                  >
+                    Reset
+                  </button>
+                </div>
+              </div>
+              
+              <p className="text-[11px] text-charcoal/60 italic leading-snug">
+                Select what you have available (hotel kettle, air fryer, microwave, etc.):
+              </p>
+
+              <div className="grid grid-cols-2 gap-1.5 pt-1">
+                {KITCHEN_EQUIPMENT.map((equip) => {
+                  const isSelected = selectedEquipment.includes(equip.id);
+                  return (
+                    <button
+                      key={equip.id}
+                      type="button"
+                      onClick={() => toggleEquipment(equip.id)}
+                      aria-pressed={isSelected}
+                      title={equip.desc}
+                      className={`flex items-center justify-between px-2.5 py-2 rounded-lg border text-xs font-medium transition-all duration-150 cursor-pointer text-left ${
+                        isSelected 
+                          ? 'bg-olive text-white border-olive shadow-xs' 
+                          : 'bg-cream border-olive/15 dark:border-olive/25 text-charcoal/75 hover:border-orange-burnt/60 hover:text-charcoal dark:bg-cream-dark/30'
+                      }`}
+                    >
+                      <span className="flex items-center gap-1.5 truncate">
+                        <span>{equip.icon}</span>
+                        <span className="truncate">{equip.label.split(' (')[0]}</span>
+                      </span>
+                      <span className={`text-[10px] ml-1 shrink-0 font-bold ${isSelected ? 'text-white' : 'text-charcoal/30'}`}>
+                        {isSelected ? '✓' : '+'}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
@@ -607,11 +950,14 @@ Generated beautifully via Flavr 🍳
       </div>
 
       {/* DYNAMIC RECIPE VIEWPORT CONTAINER */}
-      <div className="w-full md:w-3/5 p-6 sm:p-8 md:p-12 flex flex-col justify-between bg-cream min-h-[50vh] md:min-h-screen overflow-y-auto">
+      <div 
+        ref={viewportRef} 
+        className="w-full md:w-3/5 p-6 sm:p-8 md:p-12 flex flex-col justify-between bg-cream min-h-[50vh] md:min-h-screen overflow-y-auto"
+      >
         
         <div className="w-full flex-grow flex flex-col">
           {isLoading && (
-            <div className="m-auto text-center space-y-4 py-12 animate-pulse">
+            <div className="m-auto text-center space-y-4 py-12 animate-pulse no-print">
               <span className="text-4xl sm:text-5xl inline-block animate-bounce">🍳</span>
               <h3 className="font-serif text-lg sm:text-xl font-medium text-charcoal">Frying up some delicious recipes...</h3>
               <p className="text-xs text-charcoal/50">Our AI chef is tailoring recipes to your pantry!</p>
@@ -619,15 +965,32 @@ Generated beautifully via Flavr 🍳
           )}
 
           {!isLoading && apiError && (
-            <div className="m-auto max-w-md w-full text-center space-y-4 p-6 bg-red-50 dark:bg-red-950/30 border border-red-200/40 dark:border-red-800/40 rounded-xl animate-fade-in">
-              <span className="text-3xl">🥣</span>
-              <h3 className="font-serif text-lg sm:text-xl font-medium text-red-800 dark:text-red-300">Composition Nudge</h3>
-              <p className="text-sm text-red-700/80 dark:text-red-300/80 leading-relaxed">{apiError}</p>
+            <div 
+              ref={nudgeCardRef} 
+              className="m-auto max-w-lg w-full text-center space-y-4 p-6 sm:p-8 bg-red-50/90 dark:bg-red-950/40 border-2 border-red-300/60 dark:border-red-800/60 rounded-2xl shadow-lg relative overflow-hidden no-print"
+            >
+              <div className="chef-emblem inline-flex items-center justify-center w-14 h-14 rounded-full bg-red-100 dark:bg-red-900/50 text-3xl shadow-inner mx-auto mb-1">
+                👨‍🍳
+              </div>
+              <div className="space-y-1">
+                <span className="text-[10px] font-bold text-red-600 dark:text-red-400 tracking-widest uppercase bg-red-100 dark:bg-red-900/40 px-3 py-1 rounded-full">
+                  Composition Nudge • Chef's Verdict
+                </span>
+                <h3 className="font-serif text-xl sm:text-2xl font-semibold text-red-900 dark:text-red-200 pt-1">
+                  Kitchen Standards Alert
+                </h3>
+              </div>
+              <blockquote className="text-sm sm:text-base text-red-800 dark:text-red-200 font-serif italic leading-relaxed px-2 sm:px-4 border-y border-red-200/60 dark:border-red-800/40 py-3">
+                “{apiError}”
+              </blockquote>
+              <p className="text-xs text-red-700/70 dark:text-red-400/70">
+                Adjust your pantry ingredients above to resume culinary creation.
+              </p>
             </div>
           )}
 
           {!isLoading && !apiError && recipes.length === 0 && (
-            <div className="m-auto max-w-md w-full text-center space-y-4 py-12 animate-fade-in">
+            <div className="m-auto max-w-md w-full text-center space-y-4 py-12 no-print">
               <span className="text-4xl">✨</span>
               <h2 className="font-serif text-2xl sm:text-3xl font-medium text-charcoal">Your culinary canvas awaits</h2>
               <p className="text-xs sm:text-sm text-charcoal/60 leading-relaxed px-4">
@@ -638,26 +1001,36 @@ Generated beautifully via Flavr 🍳
 
           {/* ACTIVE RECIPES RENDER PIPELINE */}
           {!isLoading && !apiError && recipes.length > 0 && (
-            <div className="w-full space-y-8 animate-fade-in">
+            <div className="w-full space-y-8">
               
               {/* Curated Selectors Row */}
-              <div className="space-y-3">
+              <div className="space-y-3 no-print">
                 <div className="flex flex-wrap gap-2 justify-between items-end">
                   <h3 className="text-xs uppercase tracking-wider font-semibold text-charcoal/50">Curated Menus</h3>
                   {aiNudge && <span className="text-xs text-olive italic bg-olive/5 dark:bg-olive/10 px-2 py-0.5 rounded">💡 {aiNudge}</span>}
                 </div>
                 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
+                <div ref={curatedGridRef} className="grid grid-cols-1 sm:grid-cols-3 gap-3 md:gap-4">
                   {recipes.map((recipe) => {
                     const isSelected = selectedRecipe?.id === recipe.id;
                     return (
                       <div 
                         key={recipe.id}
                         onClick={() => setSelectedRecipe(recipe)}
-                        className={`p-4 sm:p-5 rounded-xl border transition-all cursor-pointer shadow-sm transform hover:-translate-y-0.5 active:translate-y-0 duration-200 ${isSelected ? 'bg-cream-dark border-orange-burnt ring-1 ring-orange-burnt' : 'bg-cream-dark/40 dark:bg-cream-dark/30 border-olive/10 dark:border-olive/20 hover:border-olive/30'}`}
+                        className={`curated-card p-4 sm:p-5 rounded-xl border transition-all cursor-pointer shadow-sm transform hover:-translate-y-0.5 active:translate-y-0 duration-200 ${isSelected ? 'bg-cream-dark border-orange-burnt ring-1 ring-orange-burnt' : 'bg-cream-dark/40 dark:bg-cream-dark/30 border-olive/10 dark:border-olive/20 hover:border-olive/30'}`}
                       >
-                        <span className="text-[10px] font-semibold text-orange-burnt tracking-wide uppercase">{recipe.cuisine}</span>
-                        <h4 className="font-serif font-medium text-base sm:text-lg text-charcoal mt-0.5 line-clamp-2 leading-snug">{recipe.name}</h4>
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-[10px] font-semibold text-orange-burnt tracking-wide uppercase">{recipe.cuisine}</span>
+                          {recipe.equipment && (
+                            <span 
+                              className="text-[10px] font-medium bg-olive/10 dark:bg-olive/20 text-olive px-1.5 py-0.5 rounded truncate max-w-[130px]" 
+                              title={`Gear: ${recipe.equipment}`}
+                            >
+                              {getEquipmentIcon(recipe.equipment)} {recipe.equipment}
+                            </span>
+                          )}
+                        </div>
+                        <h4 className="font-serif font-medium text-base sm:text-lg text-charcoal mt-1 line-clamp-2 leading-snug">{recipe.name}</h4>
                         
                         <div className="flex gap-3 text-xs text-charcoal/60 mt-4 pt-2 border-t border-charcoal/5 dark:border-charcoal/10">
                           <span>⏱️ {recipe.cookTime}</span>
@@ -671,7 +1044,10 @@ Generated beautifully via Flavr 🍳
 
               {/* Main Active Selection Card */}
               {selectedRecipe && (
-                <div className="bg-cream-dark/60 dark:bg-cream-dark/40 border border-olive/10 dark:border-olive/20 rounded-2xl p-5 sm:p-6 md:p-8 space-y-6 transition-all duration-300 shadow-sm animate-fade-in">
+                <div 
+                  ref={activeCardRef} 
+                  className="recipe-print-area bg-cream-dark/60 dark:bg-cream-dark/40 border border-olive/10 dark:border-olive/20 rounded-2xl p-5 sm:p-6 md:p-8 space-y-6 shadow-sm"
+                >
                   
                   {/* Info Header */}
                   <div className="border-b border-olive/10 dark:border-olive/20 pb-5 flex justify-between items-start gap-4">
@@ -679,13 +1055,52 @@ Generated beautifully via Flavr 🍳
                       <h2 className="font-serif text-2xl sm:text-3xl font-medium text-charcoal leading-tight">{selectedRecipe.name}</h2>
                       <p className="text-xs sm:text-sm text-charcoal/70 leading-relaxed italic font-sans">{selectedRecipe.description}</p>
                       
-                      <div className="flex flex-wrap gap-2 pt-2">
-                        <span className="bg-olive/10 dark:bg-olive/20 text-olive text-xs px-2.5 py-1 rounded-md font-medium">Calories: {selectedRecipe.nutritionalHighlights?.calories || "N/A"}</span>
-                        <span className="bg-olive/10 dark:bg-olive/20 text-olive text-xs px-2.5 py-1 rounded-md font-medium">Protein: {selectedRecipe.nutritionalHighlights?.protein || "N/A"}</span>
+                      <div className="flex flex-wrap items-center gap-2 pt-2">
+                        {/* SERVINGS MULTIPLIER TOGGLE */}
+                        <div className="flex items-center gap-1 bg-cream dark:bg-cream-dark/60 border border-olive/20 dark:border-olive/30 rounded-lg p-0.5 shadow-2xs no-print">
+                          <span className="text-[10px] uppercase font-semibold text-charcoal/50 px-1.5">Servings</span>
+                          {[1, 2, 4, 6].map((multiplier) => (
+                            <button
+                              key={multiplier}
+                              type="button"
+                              onClick={() => setServingsMultiplier(multiplier)}
+                              className={`px-2 py-0.5 rounded text-xs font-semibold transition-all cursor-pointer ${
+                                servingsMultiplier === multiplier
+                                  ? 'bg-orange-burnt text-white shadow-xs'
+                                  : 'text-charcoal/60 hover:text-charcoal hover:bg-olive/10'
+                              }`}
+                            >
+                              {multiplier}x
+                            </button>
+                          ))}
+                        </div>
+
+                        <span className="bg-olive/10 dark:bg-olive/20 text-olive text-xs px-2.5 py-1 rounded-md font-medium">
+                          Calories: {scaleNutrient(selectedRecipe.nutritionalHighlights?.calories, servingsMultiplier)}
+                          {servingsMultiplier > 1 && <span className="opacity-75 text-[10px] ml-1">({servingsMultiplier}x)</span>}
+                        </span>
+                        <span className="bg-olive/10 dark:bg-olive/20 text-olive text-xs px-2.5 py-1 rounded-md font-medium">
+                          Protein: {scaleNutrient(selectedRecipe.nutritionalHighlights?.protein, servingsMultiplier)}
+                          {servingsMultiplier > 1 && <span className="opacity-75 text-[10px] ml-1">({servingsMultiplier}x)</span>}
+                        </span>
+                        {selectedRecipe.equipment && (
+                          <span className="bg-orange-burnt/10 dark:bg-orange-burnt/20 text-orange-burnt text-xs px-2.5 py-1 rounded-md font-medium flex items-center gap-1">
+                            {getEquipmentIcon(selectedRecipe.equipment)} Gear: {selectedRecipe.equipment}
+                          </span>
+                        )}
                       </div>
                     </div>
                     
-                    <div className="flex gap-2 shrink-0">
+                    <div className="flex gap-2 shrink-0 no-print">
+                      {/* PRINT BUTTON */}
+                      <button 
+                        onClick={handlePrintRecipe}
+                        title="Print recipe or save as clean PDF"
+                        className="bg-cream hover:bg-cream-dark border border-olive/20 dark:border-olive/30 text-charcoal p-2.5 rounded-lg shadow-xs transition-all hover:border-orange-burnt active:scale-95 cursor-pointer text-sm"
+                      >
+                        🖨️
+                      </button>
+
                       {/* FAVORITE BUTTON */}
                       <button 
                         onClick={() => toggleSaveRecipe(selectedRecipe)}
@@ -699,7 +1114,7 @@ Generated beautifully via Flavr 🍳
                       <button 
                         onClick={handleCopyRecipe}
                         title="Copy full blueprint to clipboard"
-                        className="bg-cream hover:bg-cream-dark border border-olive/20 dark:border-olive/30 text-charcoal p-2.5 rounded-lg shadow-xs transition-all hover:border-orange-burnt active:scale-95 cursor-pointer"
+                        className="bg-cream hover:bg-cream-dark border border-olive/20 dark:border-olive/30 text-charcoal p-2.5 rounded-lg shadow-xs transition-all hover:border-orange-burnt active:scale-95 cursor-pointer text-sm"
                       >
                         📋
                       </button>
@@ -719,11 +1134,37 @@ Generated beautifully via Flavr 🍳
                     
                     {selectedRecipe.missingIngredients?.length > 0 && (
                       <div className="space-y-2">
-                        <h5 className="text-xs uppercase tracking-wider font-semibold text-charcoal/50">Extra Minor Items Needed</h5>
+                        <div className="flex justify-between items-center">
+                          <h5 className="text-xs uppercase tracking-wider font-semibold text-charcoal/50">Extra Minor Items Needed</h5>
+                          <button
+                            type="button"
+                            onClick={copyShoppingList}
+                            className="text-[10px] text-orange-burnt hover:underline font-semibold flex items-center gap-1 cursor-pointer no-print"
+                            title="Copy shopping checklist to clipboard"
+                          >
+                            🛒 Copy Shopping List
+                          </button>
+                        </div>
                         <div className="flex flex-wrap gap-1.5">
-                          {selectedRecipe.missingIngredients.map((ing, i) => (
-                            <span key={i} className="bg-orange-burnt/10 text-orange-burnt text-[11px] sm:text-xs px-2.5 py-1 rounded-md font-medium">+. {ing}</span>
-                          ))}
+                          {selectedRecipe.missingIngredients.map((ing, i) => {
+                            const isChecked = !!checkedMissing[ing];
+                            return (
+                              <button
+                                key={i}
+                                type="button"
+                                onClick={() => toggleMissingItem(ing)}
+                                className={`text-[11px] sm:text-xs px-2.5 py-1 rounded-md font-medium transition-all duration-150 flex items-center gap-1.5 cursor-pointer ${
+                                  isChecked 
+                                    ? 'bg-olive/20 text-olive line-through border border-olive/30' 
+                                    : 'bg-orange-burnt/10 text-orange-burnt hover:bg-orange-burnt/20 border border-orange-burnt/20'
+                                }`}
+                                title="Click to check off item"
+                              >
+                                <span>{isChecked ? '☑' : '☐'}</span>
+                                <span>{ing}</span>
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -779,67 +1220,133 @@ Generated beautifully via Flavr 🍳
       </div>
 
       {/* SAVED RECIPES DRAWER */}
-      <div className={`fixed top-0 right-0 h-full w-full sm:w-[400px] bg-cream shadow-2xl border-l border-olive/10 dark:border-olive/20 z-50 transition-all duration-300 transform ${isSavedDrawerOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+      <div 
+        ref={favoritesDrawerRef} 
+        className={`fixed top-0 right-0 h-full w-full sm:w-[420px] bg-cream shadow-2xl border-l border-olive/10 dark:border-olive/20 z-50 transition-all duration-300 transform no-print ${isSavedDrawerOpen ? 'translate-x-0' : 'translate-x-full'}`}
+      >
         <div className="p-6 h-full flex flex-col justify-between">
-          <div className="flex justify-between items-center border-b border-olive/10 dark:border-olive/20 pb-4">
-            <h3 className="font-serif text-xl font-medium text-charcoal flex items-center gap-2">
-              ⭐️ Favorite Recipes
-            </h3>
-            <button 
-              onClick={() => setIsSavedDrawerOpen(false)}
-              className="text-2xl text-charcoal hover:text-orange-burnt transition-colors focus:outline-none cursor-pointer"
-            >
-              ×
-            </button>
+          <div className="space-y-3 border-b border-olive/10 dark:border-olive/20 pb-4">
+            <div className="flex justify-between items-center">
+              <h3 className="font-serif text-xl font-medium text-charcoal flex items-center gap-2">
+                ⭐️ Favorite Recipes
+              </h3>
+              <button 
+                onClick={() => setIsSavedDrawerOpen(false)}
+                className="text-2xl text-charcoal hover:text-orange-burnt transition-colors focus:outline-none cursor-pointer"
+              >
+                ×
+              </button>
+            </div>
+
+            {/* LIVE SEARCH INSIDE FAVORITES */}
+            {savedRecipes.length > 0 && (
+              <div className="relative pt-1">
+                <input
+                  type="text"
+                  value={favoritesSearch}
+                  onChange={(e) => setFavoritesSearch(e.target.value)}
+                  placeholder="Filter favorites by name, cuisine, gear..."
+                  className="w-full bg-cream-dark/80 border border-olive/20 dark:border-olive/30 rounded-lg pl-8 pr-7 py-2 text-xs focus:outline-none focus:border-orange-burnt transition-all font-sans placeholder-charcoal/40"
+                />
+                <span className="absolute left-2.5 top-3 text-xs opacity-50">🔍</span>
+                {favoritesSearch && (
+                  <button
+                    type="button"
+                    onClick={() => setFavoritesSearch('')}
+                    className="absolute right-2.5 top-2.5 text-charcoal/40 hover:text-charcoal text-xs font-bold cursor-pointer"
+                  >
+                    ×
+                  </button>
+                )}
+              </div>
+            )}
           </div>
           
-          <div className="flex-grow overflow-y-auto py-4 space-y-4">
+          <div className="flex-grow overflow-y-auto py-4 space-y-3">
             {savedRecipes.length === 0 ? (
               <div className="text-center py-12 text-charcoal/40 text-sm">
                 <p className="text-3xl mb-2">🔖</p>
                 <p>No bookmarked recipes yet.</p>
                 <p className="text-xs mt-1">Bookmark recipes to save them here!</p>
               </div>
+            ) : filteredFavorites.length === 0 ? (
+              <div className="text-center py-12 text-charcoal/40 text-sm">
+                <p className="text-3xl mb-2">🔍</p>
+                <p>No favorites match "{favoritesSearch}"</p>
+                <button
+                  type="button"
+                  onClick={() => setFavoritesSearch('')}
+                  className="mt-2 text-xs text-orange-burnt underline cursor-pointer"
+                >
+                  Clear search
+                </button>
+              </div>
             ) : (
-              savedRecipes.map((recipe) => (
+              filteredFavorites.map((recipe) => (
                 <div 
                   key={recipe.id}
-                  className="p-4 rounded-xl border border-olive/10 dark:border-olive/20 bg-cream-dark/50 hover:bg-cream-dark transition-all cursor-pointer relative group"
-                >
-                  <div onClick={() => {
+                  onClick={() => {
                     setRecipes([recipe, ...recipes.filter(r => r.id !== recipe.id)]);
                     setSelectedRecipe(recipe);
                     setIsSavedDrawerOpen(false);
-                  }}>
-                    <span className="text-[10px] font-semibold text-orange-burnt tracking-wide uppercase">{recipe.cuisine}</span>
-                    <h4 className="font-serif font-medium text-sm text-charcoal mt-0.5 line-clamp-1">{recipe.name}</h4>
-                    <p className="text-xs text-charcoal/50 mt-1 line-clamp-2">{recipe.description}</p>
-                    <div className="flex gap-3 text-[10px] text-charcoal/60 mt-2">
+                  }}
+                  className="p-4 rounded-xl border border-olive/10 dark:border-olive/20 bg-cream-dark/50 hover:bg-cream-dark transition-all cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <span className="text-[10px] font-semibold text-orange-burnt tracking-wide uppercase truncate">
+                      {recipe.cuisine}
+                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      {recipe.equipment && (
+                        <span className="text-[10px] text-olive font-medium bg-olive/10 dark:bg-olive/20 px-2 py-0.5 rounded truncate max-w-[120px]">
+                          {getEquipmentIcon(recipe.equipment)} {recipe.equipment}
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toggleSaveRecipe(recipe);
+                        }}
+                        className="p-1 rounded-md text-charcoal/40 hover:text-red-500 hover:bg-red-500/10 dark:hover:bg-red-950/40 transition-colors cursor-pointer"
+                        title="Remove Bookmark"
+                        aria-label="Remove Bookmark"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                  <h4 className="font-serif font-medium text-sm text-charcoal line-clamp-1 group-hover:text-orange-burnt transition-colors">
+                    {recipe.name}
+                  </h4>
+                  <p className="text-xs text-charcoal/50 mt-1 line-clamp-2 leading-relaxed">
+                    {recipe.description}
+                  </p>
+                  <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-olive/5 dark:border-olive/15 text-[10px] text-charcoal/60">
+                    <div className="flex items-center gap-3">
                       <span>⏱️ {recipe.cookTime}</span>
                       <span>🔥 {recipe.difficulty}</span>
                     </div>
+                    <span className="text-olive font-medium group-hover:text-orange-burnt transition-colors">
+                      Open recipe →
+                    </span>
                   </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toggleSaveRecipe(recipe);
-                    }}
-                    className="absolute top-3 right-3 text-red-500 opacity-60 hover:opacity-100 transition-opacity"
-                    title="Remove Bookmark"
-                  >
-                    🗑️
-                  </button>
                 </div>
               ))
             )}
           </div>
           
-          <div className="border-t border-olive/10 dark:border-olive/20 pt-4">
+          <div className="border-t border-olive/10 dark:border-olive/20 pt-4 flex items-center justify-between gap-2">
+            <span className="text-[10px] text-charcoal/50">
+              {filteredFavorites.length} of {savedRecipes.length} saved
+            </span>
             <button 
               onClick={() => setIsSavedDrawerOpen(false)}
-              className="w-full bg-charcoal text-white dark:bg-[#252C21] dark:text-[#EDE8DE] dark:border dark:border-olive/20 py-3 rounded-lg text-sm font-medium hover:bg-charcoal/90 dark:hover:bg-[#2E362A] transition-all shadow-md cursor-pointer"
+              className="bg-charcoal text-white dark:bg-[#252C21] dark:text-[#EDE8DE] dark:border dark:border-olive/20 px-5 py-2.5 rounded-lg text-xs font-medium hover:bg-charcoal/90 dark:hover:bg-[#2E362A] transition-all shadow-md cursor-pointer"
             >
-              Close Favorites
+              Close
             </button>
           </div>
         </div>
@@ -849,19 +1356,26 @@ Generated beautifully via Flavr 🍳
       {isSavedDrawerOpen && (
         <div 
           onClick={() => setIsSavedDrawerOpen(false)}
-          className="fixed inset-0 bg-charcoal/40 dark:bg-black/60 backdrop-blur-xs z-40 transition-opacity"
+          className="fixed inset-0 bg-charcoal/40 dark:bg-black/60 backdrop-blur-xs z-40 transition-opacity no-print"
         />
       )}
 
       {/* INTERACTIVE COOKING MODE OVERLAY */}
       {isCookModeOpen && activeCookRecipe && (
-        <div className="fixed inset-0 bg-charcoal/90 dark:bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 transition-all duration-300">
-          <div className="bg-cream w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col justify-between overflow-hidden max-h-[90vh] border border-olive/10 dark:border-olive/25">
+        <div className="fixed inset-0 bg-charcoal/90 dark:bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 transition-all duration-300 no-print">
+          <div ref={cookModalRef} className="bg-cream w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col justify-between overflow-hidden max-h-[90vh] border border-olive/10 dark:border-olive/25">
             
             {/* Header */}
             <div className="bg-cream-dark p-5 border-b border-olive/15 flex justify-between items-center">
               <div>
-                <span className="text-[10px] font-semibold text-orange-burnt tracking-wide uppercase">Cooking Mode</span>
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-semibold text-orange-burnt tracking-wide uppercase">Cooking Mode</span>
+                  {activeCookRecipe.equipment && (
+                    <span className="text-[10px] bg-olive/10 dark:bg-olive/20 text-olive font-medium px-2 py-0.5 rounded">
+                      {getEquipmentIcon(activeCookRecipe.equipment)} {activeCookRecipe.equipment}
+                    </span>
+                  )}
+                </div>
                 <h3 className="font-serif font-semibold text-lg sm:text-xl text-charcoal line-clamp-1">{activeCookRecipe.name}</h3>
               </div>
               <button 
