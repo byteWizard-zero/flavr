@@ -71,20 +71,33 @@ function parseJSONResponse(text) {
 /**
  * Validates and normalizes recipes to ensure UI components don't encounter undefined errors.
  */
-function normalizeRecipeData(data) {
+function normalizeRecipeData(data, preferences = {}) {
+  const rawIsValid = data?.sanityCheck?.isValidCombination;
+  const isExplicitlyInvalid = rawIsValid === false || rawIsValid === 'false' || rawIsValid === 0;
+  const rawRecipes = Array.isArray(data?.recipes) ? data.recipes : [];
+  
+  // If explicitly flagged invalid or no recipes with a nudgeMessage present
+  const isValidCombination = !isExplicitlyInvalid && (rawRecipes.length > 0 || !data?.sanityCheck?.nudgeMessage);
+
   const sanityCheck = {
-    isValidCombination: data?.sanityCheck?.isValidCombination !== false,
-    confidenceScore: typeof data?.sanityCheck?.confidenceScore === 'number' ? data.sanityCheck.confidenceScore : 1.0,
+    isValidCombination,
+    confidenceScore: typeof data?.sanityCheck?.confidenceScore === 'number' 
+      ? data.sanityCheck.confidenceScore 
+      : (isValidCombination ? 1.0 : 0.0),
     nudgeMessage: data?.sanityCheck?.nudgeMessage || ''
   };
 
-  const rawRecipes = Array.isArray(data?.recipes) ? data.recipes : [];
+  const defaultGear = Array.isArray(preferences?.equipment) && preferences.equipment.length > 0 
+    ? preferences.equipment.join(', ') 
+    : 'Standard Cookware';
+
   const recipes = rawRecipes.map((recipe, index) => ({
     id: recipe.id || `recipe-${Date.now()}-${index}`,
     name: recipe.name || 'Untitled Culinary Dish',
     cuisine: recipe.cuisine || 'Fusion',
     cookTime: recipe.cookTime || '20 mins',
     difficulty: recipe.difficulty || 'Easy',
+    equipment: recipe.equipment || defaultGear,
     description: recipe.description || 'A delicious dish crafted with your kitchen ingredients.',
     matchedIngredients: Array.isArray(recipe.matchedIngredients) ? recipe.matchedIngredients : [],
     missingIngredients: Array.isArray(recipe.missingIngredients) ? recipe.missingIngredients : [],
@@ -101,12 +114,13 @@ function normalizeRecipeData(data) {
 
 /**
  * Sends ingredients to FreeLLMAPI proxy on Render to get ranked, beginner-friendly recipes.
+ * Supports dietary preferences, meal types, and kitchen equipment/appliances constraints.
  * @param {Array<string>} ingredientsList 
  * @param {Object} preferences
  * @returns {Promise<Object>} Formatted recipes or sanity check errors
  */
 export async function generateRecipesFromPantry(ingredientsList, preferences = {}) {
-  const { diet, mealType } = preferences;
+  const { diet, mealType, equipment } = preferences;
   let preferenceInstructions = '';
   if (diet && diet !== 'none') {
     preferenceInstructions += `\nDIETARY RESTRICTION: You MUST only generate recipes that are strictly ${diet}. Ensure all ingredients, instructions, and substitutions conform to a ${diet} diet.`;
@@ -114,12 +128,39 @@ export async function generateRecipesFromPantry(ingredientsList, preferences = {
   if (mealType && mealType !== 'none') {
     preferenceInstructions += `\nMEAL TYPE: All recipes generated must be ideal for ${mealType} (adjust portions, style, and cooking style accordingly).`;
   }
+  if (Array.isArray(equipment) && equipment.length > 0) {
+    preferenceInstructions += `\nAVAILABLE COOKING APPLIANCES & GEAR: [${equipment.join(', ')}].
+CRITICAL EQUIPMENT RESTRICTION: The user ONLY has access to the appliances/tools listed above. You MUST STRICTLY only generate recipes that can be 100% prepared using ONLY these specified tools. DO NOT require an oven, stovetop, air fryer, blender, or any cookware/heat source not in this list. In the instructions, specifically explain how to prepare the dish using the available tools (e.g. if the user only has an Electric Kettle, explain how to boil water, steep, poach, or cook directly using the kettle). In each recipe's "equipment" field, state the primary tool used.`;
+  }
 
   const prompt = `
-You are an expert culinary chef who specializes in helping absolute beginners cook delicious meals with whatever ingredients they have in their kitchen.
+You are an expert culinary chef with Michelin-grade standards, sharp wit, and a commanding, theatrical presence in the kitchen.
 
-Phase 1 (Sanity Check): Evaluate if the ingredients can actually make a real, edible dish. Check for low-utility combinations or junk inputs.
-Phase 2 (Recipe Generation): If valid, generate 3 to 5 realistic recipes ranked by how well the provided ingredients match, conforming strictly to any dietary or meal preferences.
+PHASE 1 — MANDATORY FOOD SAFETY & SANITY CHECK:
+Scrutinize the user's provided ingredient list: [${ingredientsList.join(', ')}].
+Detect if the list contains ANY:
+1. Inedible, non-food, hazardous, or biological/mythical parts (e.g. "human skull", "dragon eye", "rocks", "shoes", "plastic", "poison", "bleach", anatomy, magical/fantasy items).
+2. Completely uncookable, absurd, or repulsive combinations that no chef could ever make into edible food.
+
+CRITICAL INSTRUCTION FOR INAPPROPRIATE / ABSURD INGREDIENTS:
+If ANY inappropriate, inedible, mythical, or dangerous ingredient is present:
+- You MUST set "isValidCombination": false
+- You MUST set "confidenceScore": 0.0
+- You MUST set "recipes": []
+- In "nudgeMessage", you MUST generate a HILARIOUS YET IMPOSING chef response.
+  PERSONA: A demanding, theatrical master chef (think Gordon Ramsay meets a sarcastic kitchen monarch).
+  STYLE: Witty, sarcastic, playfully menacing, and strictly imposing.
+  CONTENT:
+  1. Call out the specific ridiculous or inappropriate ingredient(s) directly by name.
+  2. Deliver a sharp, hilarious roast questioning what dark dungeon, crime scene, or fantasy necromancer lair they raided.
+  3. Authoritatively command them to step away from the forbidden items and bring actual, edible food into your kitchen!
+  Keep it punchy, memorable, and funny (2 to 4 sentences).
+
+PHASE 2 — RECIPE GENERATION (Only if all ingredients are edible and valid):
+If the ingredients are edible and cohesive:
+- Set "isValidCombination": true
+- "nudgeMessage": (Optional) a brief culinary tip or nudge.
+- Generate 3 to 5 realistic recipes ranked by how well the provided ingredients match, conforming strictly to any dietary, meal, and equipment preferences.
 ${preferenceInstructions}
 
 CRITICAL INSTRUCTION FOR BEGINNERS: For the step-by-step cooking instructions, do not assume any prior kitchen knowledge. Explain HOW to do a technique if necessary, include explicit visual or sensory cues (e.g., "cook until the onions turn translucent and soft, about 5 minutes", "it should smell fragrant"), and give helpful, clear safety or execution tips for each step.
@@ -140,6 +181,7 @@ You MUST respond strictly using the following JSON schema format without markdow
       "cuisine": "Cuisine type",
       "cookTime": "Estimated total time (e.g., 25 mins)",
       "difficulty": "Easy",
+      "equipment": "Primary tool used (e.g. Electric Kettle, Air Fryer, Stovetop Pan, Microwave, No-Cook)",
       "description": "A short, appetizing text description of the dish.",
       "matchedIngredients": ["ingredient from list used"],
       "missingIngredients": ["minimal extra everyday items needed, shown clearly"],
@@ -180,7 +222,7 @@ You MUST respond strictly using the following JSON schema format without markdow
     messages: [
       {
         role: 'system',
-        content: 'You are a professional chef API engine that outputs strictly valid JSON only.'
+        content: 'You are an elite, Michelin-caliber Master Chef API engine with sharp wit, commanding kitchen standards, and a delightfully imposing sense of humor. You output strictly valid JSON only.'
       },
       {
         role: 'user',
@@ -215,7 +257,7 @@ You MUST respond strictly using the following JSON schema format without markdow
     }
 
     const parsedData = parseJSONResponse(responseText);
-    return normalizeRecipeData(parsedData);
+    return normalizeRecipeData(parsedData, preferences);
   } catch (proxyError) {
     console.error('FreeLLMAPI proxy call failed:', proxyError);
     throw new Error(proxyError.message || 'Failed to generate recipes from FreeLLMAPI proxy.', { cause: proxyError });
