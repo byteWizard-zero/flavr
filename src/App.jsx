@@ -63,10 +63,8 @@ export default function App() {
   // Text to Speech State
   const [isSpeaking, setIsSpeaking] = useState(false);
 
-  // Refs for timers & audio context
+  // Refs for toast timer
   const toastTimerRef = useRef(null);
-  const sizzleSourceRef = useRef(null);
-  const audioCtxRef = useRef(null);
 
   // showToast wrapped in useCallback
   const showToast = useCallback((msg) => {
@@ -75,179 +73,15 @@ export default function App() {
     toastTimerRef.current = setTimeout(() => setToastMessage(''), 4000);
   }, []);
 
-  // playTickSound: A short mechanical click for timer countdowns
-  const playTickSound = useCallback(() => {
-    try {
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContextClass) return;
-      const audioCtx = new AudioContextClass();
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.type = 'triangle';
-      osc.frequency.setValueAtTime(600, audioCtx.currentTime);
-      gain.gain.setValueAtTime(0.03, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.015);
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.02);
-    } catch {
-      // Ignore audio blocks
-    }
-  }, []);
-
-  // playTapSound: A soft, organic tap for button interactions
-  const playTapSound = useCallback(() => {
-    try {
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContextClass) return;
-      const audioCtx = new AudioContextClass();
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.type = 'sine';
-      osc.frequency.setValueAtTime(440, audioCtx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(700, audioCtx.currentTime + 0.04);
-      gain.gain.setValueAtTime(0.04, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.05);
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.06);
-    } catch {
-      // Ignore
-    }
-  }, []);
-
-  // playAlarmChime: Auditory chime for timer completion
-  const playAlarmChime = useCallback(() => {
-    try {
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContextClass) return;
-      const audioCtx = new AudioContextClass();
-      
-      const playTone = (freq, duration, startTime) => {
-        const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(freq, startTime);
-        gain.gain.setValueAtTime(0.18, startTime);
-        gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration - 0.05);
-        osc.start(startTime);
-        osc.stop(startTime + duration);
-      };
-      
-      const now = audioCtx.currentTime;
-      playTone(523.25, 0.3, now);       // C5
-      playTone(659.25, 0.3, now + 0.12);  // E5
-      playTone(783.99, 0.5, now + 0.24);  // G5
-    } catch (e) {
-      console.warn("Audio Context failed:", e);
-    }
-    showToast("⏰ Timer complete!");
-  }, [showToast]);
-
-  // playBubble: Synthesizes high-pitched cooking/oil bubble pops
-  const playBubble = useCallback((audioCtx) => {
-    try {
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      osc.connect(gain);
-      gain.connect(audioCtx.destination);
-      osc.type = 'sine';
-      const pitch = 1400 + Math.random() * 1800;
-      osc.frequency.setValueAtTime(pitch, audioCtx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(120, audioCtx.currentTime + 0.045);
-      gain.gain.setValueAtTime(0.015, audioCtx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.04);
-      osc.start();
-      osc.stop(audioCtx.currentTime + 0.05);
-    } catch {
-      // Ignore
-    }
-  }, []);
-
-  // startSizzling: Synthesizes procedural cooking fry/sizzle white noise loop
-  const startSizzling = useCallback(() => {
-    try {
-      const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-      if (!AudioContextClass) return;
-      const audioCtx = new AudioContextClass();
-      audioCtxRef.current = audioCtx;
-
-      // 2 seconds loop buffer of white noise
-      const bufferSize = audioCtx.sampleRate * 2;
-      const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
-      const data = buffer.getChannelData(0);
-      for (let i = 0; i < bufferSize; i++) {
-        data[i] = Math.random() * 2 - 1;
-      }
-
-      const source = audioCtx.createBufferSource();
-      source.buffer = buffer;
-      source.loop = true;
-
-      // Bandpass filtering makes noise sound like sizzling frying oil
-      const filter = audioCtx.createBiquadFilter();
-      filter.type = 'bandpass';
-      filter.frequency.value = 4500;
-      filter.Q.value = 0.7;
-
-      const gain = audioCtx.createGain();
-      gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
-
-      source.connect(filter);
-      filter.connect(gain);
-      gain.connect(audioCtx.destination);
-
-      source.start();
-      sizzleSourceRef.current = source;
-      
-      // Bubbling pops interval loop
-      const bubbleInterval = setInterval(() => {
-        if (audioCtx.state === 'closed') {
-          clearInterval(bubbleInterval);
-          return;
-        }
-        playBubble(audioCtx);
-      }, 160);
-      
-      source.bubbleInterval = bubbleInterval;
-    } catch (e) {
-      console.warn("Sizzle failed", e);
-    }
-  }, [playBubble]);
-
-  // stopSizzling: Tears down audio pipelines safely
-  const stopSizzling = useCallback(() => {
-    try {
-      if (sizzleSourceRef.current) {
-        if (sizzleSourceRef.current.bubbleInterval) {
-          clearInterval(sizzleSourceRef.current.bubbleInterval);
-        }
-        sizzleSourceRef.current.stop();
-        sizzleSourceRef.current = null;
-      }
-      if (audioCtxRef.current) {
-        audioCtxRef.current.close();
-        audioCtxRef.current = null;
-      }
-    } catch (e) {
-      console.warn("Stop sizzling failed:", e);
-    }
-  }, []);
-
   // Clean up timers & speech on unmount
   useEffect(() => {
     return () => {
       if ('speechSynthesis' in window) window.speechSynthesis.cancel();
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
-      stopSizzling();
     };
-  }, [stopSizzling]);
+  }, []);
 
-  // Timer Tick Handler
+  // Timer Tick Handler without sound effects
   useEffect(() => {
     let intervalId = null;
     if (isTimerRunning && timerSeconds > 0) {
@@ -255,10 +89,9 @@ export default function App() {
         setTimerSeconds((prev) => {
           if (prev <= 1) {
             setIsTimerRunning(false);
-            playAlarmChime();
+            showToast("⏰ Timer complete!");
             return 0;
           }
-          playTickSound();
           return prev - 1;
         });
       }, 1000);
@@ -266,7 +99,7 @@ export default function App() {
     return () => {
       if (intervalId) clearInterval(intervalId);
     };
-  }, [isTimerRunning, timerSeconds, playAlarmChime, playTickSound]);
+  }, [isTimerRunning, timerSeconds, showToast]);
 
   const savePantryToStorage = (newIngredients) => {
     localStorage.setItem('flavr_pantry', JSON.stringify(newIngredients));
@@ -321,7 +154,6 @@ export default function App() {
     const updated = [...ingredients, cleanItem];
     setIngredients(updated);
     savePantryToStorage(updated);
-    playTapSound();
     setInputValue('');
     setSuggestions([]);
   };
@@ -337,7 +169,6 @@ export default function App() {
     const updated = ingredients.filter((_, index) => index !== indexToRemove);
     setIngredients(updated);
     savePantryToStorage(updated);
-    playTapSound();
   };
 
   const clearPantry = () => {
@@ -347,12 +178,10 @@ export default function App() {
     setSelectedRecipe(null);
     setAiNudge('');
     setApiError('');
-    playTapSound();
     showToast("Pantry reset successfully!");
   };
 
   const toggleSaveRecipe = (recipe) => {
-    playTapSound();
     setSavedRecipes((prev) => {
       const isAlreadySaved = prev.some(r => r.id === recipe.id);
       let updated;
@@ -394,13 +223,11 @@ Generated beautifully via Flavr 🍳
     `.trim();
 
     navigator.clipboard.writeText(formattedText);
-    playTapSound();
     showToast("Recipe blueprint copied to clipboard!");
   };
 
   const handleFindRecipes = async () => {
     setIsLoading(true);
-    startSizzling();
     setApiError('');
     setAiNudge('');
     setSelectedRecipe(null);
@@ -427,7 +254,6 @@ Generated beautifully via Flavr 🍳
       setApiError(err.message || "An unexpected culinary error occurred.");
     } finally {
       setIsLoading(false);
-      stopSizzling();
     }
   };
 
@@ -458,17 +284,14 @@ Generated beautifully via Flavr 🍳
   };
 
   const startTimer = () => {
-    playTapSound();
     setIsTimerRunning(true);
   };
 
   const pauseTimer = () => {
-    playTapSound();
     setIsTimerRunning(false);
   };
 
   const resetTimer = () => {
-    playTapSound();
     setIsTimerRunning(false);
     setTimerSeconds(timerMaxSeconds);
   };
@@ -497,7 +320,6 @@ Generated beautifully via Flavr 🍳
 
   const startCookMode = () => {
     if (!selectedRecipe) return;
-    playTapSound();
     setActiveCookRecipe(selectedRecipe);
     setActiveCookStep(0);
     setIsCookModeOpen(true);
@@ -532,7 +354,7 @@ Generated beautifully via Flavr 🍳
               </p>
             </div>
             <button
-              onClick={() => { playTapSound(); setIsSavedDrawerOpen(true); }}
+              onClick={() => setIsSavedDrawerOpen(true)}
               className="bg-cream hover:bg-cream-dark border border-olive/20 p-2.5 rounded-lg shadow-sm transition-all hover:border-orange-burnt active:scale-95 flex items-center gap-1.5 text-xs font-semibold shrink-0"
               title="Open Favorite Recipes"
             >
@@ -562,7 +384,7 @@ Generated beautifully via Flavr 🍳
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 disabled={isLoading}
-                placeholder={isLoading ? "Chef is sizzling..." : "Type ingredient and hit Enter..."}
+                placeholder={isLoading ? "Generating recipes..." : "Type ingredient and hit Enter..."}
                 className="w-full bg-cream border border-olive/20 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-orange-burnt focus:ring-1 focus:ring-orange-burnt transition-all font-sans placeholder-charcoal/40 z-10 relative disabled:opacity-50"
               />
 
@@ -612,7 +434,6 @@ Generated beautifully via Flavr 🍳
                     onChange={(e) => {
                       setDietPreference(e.target.value);
                       localStorage.setItem('flavr_diet', e.target.value);
-                      playTapSound();
                     }}
                     className="w-full bg-cream border border-olive/20 rounded-lg px-2.5 py-2 text-xs focus:outline-none focus:border-orange-burnt transition-all"
                   >
@@ -631,7 +452,6 @@ Generated beautifully via Flavr 🍳
                     onChange={(e) => {
                       setMealTypePreference(e.target.value);
                       localStorage.setItem('flavr_meal', e.target.value);
-                      playTapSound();
                     }}
                     className="w-full bg-cream border border-olive/20 rounded-lg px-2.5 py-2 text-xs focus:outline-none focus:border-orange-burnt transition-all"
                   >
@@ -649,7 +469,7 @@ Generated beautifully via Flavr 🍳
             {/* STAPLES DRAWER */}
             <div className="border border-olive/10 rounded-xl bg-cream-dark/40 overflow-hidden transition-all duration-300">
               <button
-                onClick={() => { playTapSound(); setIsStaplesOpen(!isStaplesOpen); }}
+                onClick={() => setIsStaplesOpen(!isStaplesOpen)}
                 className="w-full flex justify-between items-center px-4 py-3 text-xs uppercase tracking-wider font-semibold text-charcoal/70 hover:bg-olive/5 transition-colors focus:outline-none"
               >
                 <span>Quick-Add Staples 🥬</span>
@@ -692,7 +512,7 @@ Generated beautifully via Flavr 🍳
           >
             {isLoading ? (
               <>
-                <span className="animate-spin text-xl">🍳</span> Sizzling & Simmering...
+                <span className="animate-spin text-xl">🍳</span> Crafting Your Recipes...
               </>
             ) : "Find Recipes"}
           </button>
@@ -707,7 +527,7 @@ Generated beautifully via Flavr 🍳
             <div className="m-auto text-center space-y-4 py-12 animate-pulse">
               <span className="text-4xl sm:text-5xl inline-block animate-bounce">🍳</span>
               <h3 className="font-serif text-lg sm:text-xl font-medium text-charcoal">Frying up some delicious recipes...</h3>
-              <p className="text-xs text-charcoal/50">Listen closely, the kitchen is busy!</p>
+              <p className="text-xs text-charcoal/50">Our AI chef is tailoring recipes to your pantry!</p>
             </div>
           )}
 
@@ -746,7 +566,7 @@ Generated beautifully via Flavr 🍳
                     return (
                       <div 
                         key={recipe.id}
-                        onClick={() => { playTapSound(); setSelectedRecipe(recipe); }}
+                        onClick={() => setSelectedRecipe(recipe)}
                         className={`p-4 sm:p-5 rounded-xl border transition-all cursor-pointer shadow-sm transform hover:-translate-y-0.5 active:translate-y-0 duration-200 ${isSelected ? 'bg-cream-dark border-orange-burnt ring-1 ring-orange-burnt' : 'bg-cream-dark/40 border-olive/10 hover:border-olive/30'}`}
                       >
                         <span className="text-[10px] font-semibold text-orange-burnt tracking-wide uppercase">{recipe.cuisine}</span>
@@ -858,15 +678,14 @@ Generated beautifully via Flavr 🍳
 
             </div>
           )}
+
         </div>
 
-        {/* ATTRIBUTION FOOTER */}
-        <div className="w-full text-center pt-12 pb-2 md:pb-0 border-t border-charcoal/5 mt-auto">
-          <p className="font-serif italic text-xs text-charcoal/40 tracking-wide">
-            Made by Soumya with 🧠
-          </p>
+        {/* FOOTER */}
+        <div className="pt-8 border-t border-olive/10 flex flex-col sm:flex-row justify-between items-center text-xs text-charcoal/40 gap-2">
+          <span>Flavr — Culinary Simplicity</span>
+          <span>Powered by FreeLLMAPI Proxy</span>
         </div>
-
       </div>
 
       {/* SAVED RECIPES DRAWER */}
@@ -877,7 +696,7 @@ Generated beautifully via Flavr 🍳
               ⭐️ Favorite Recipes
             </h3>
             <button 
-              onClick={() => { playTapSound(); setIsSavedDrawerOpen(false); }}
+              onClick={() => setIsSavedDrawerOpen(false)}
               className="text-2xl text-charcoal hover:text-orange-burnt transition-colors focus:outline-none"
             >
               ×
@@ -898,7 +717,6 @@ Generated beautifully via Flavr 🍳
                   className="p-4 rounded-xl border border-olive/10 bg-cream-dark/50 hover:bg-cream-dark transition-all cursor-pointer relative group"
                 >
                   <div onClick={() => {
-                    playTapSound();
                     setRecipes([recipe, ...recipes.filter(r => r.id !== recipe.id)]);
                     setSelectedRecipe(recipe);
                     setIsSavedDrawerOpen(false);
@@ -928,7 +746,7 @@ Generated beautifully via Flavr 🍳
           
           <div className="border-t border-olive/10 pt-4">
             <button 
-              onClick={() => { playTapSound(); setIsSavedDrawerOpen(false); }}
+              onClick={() => setIsSavedDrawerOpen(false)}
               className="w-full bg-charcoal text-cream py-3 rounded-lg text-sm font-medium hover:bg-charcoal/90 transition-all shadow-md"
             >
               Close Favorites
@@ -940,7 +758,7 @@ Generated beautifully via Flavr 🍳
       {/* Backdrop for saved drawer */}
       {isSavedDrawerOpen && (
         <div 
-          onClick={() => { playTapSound(); setIsSavedDrawerOpen(false); }}
+          onClick={() => setIsSavedDrawerOpen(false)}
           className="fixed inset-0 bg-charcoal/40 backdrop-blur-xs z-40 transition-opacity"
         />
       )}
@@ -958,7 +776,6 @@ Generated beautifully via Flavr 🍳
               </div>
               <button 
                 onClick={() => {
-                  playTapSound();
                   pauseTimer();
                   stopSpeaking();
                   setIsCookModeOpen(false);
@@ -1052,7 +869,6 @@ Generated beautifully via Flavr 🍳
               <button
                 onClick={() => {
                   stopSpeaking();
-                  playTapSound();
                   const prevIdx = activeCookStep - 1;
                   setActiveCookStep(prevIdx);
                   resetTimerForStep(activeCookRecipe.instructions[prevIdx]);
@@ -1065,7 +881,6 @@ Generated beautifully via Flavr 🍳
 
               <button
                 onClick={() => {
-                  playTapSound();
                   if (isSpeaking) {
                     stopSpeaking();
                   } else {
@@ -1081,7 +896,6 @@ Generated beautifully via Flavr 🍳
               <button
                 onClick={() => {
                   stopSpeaking();
-                  playTapSound();
                   if (activeCookStep === activeCookRecipe.instructions.length - 1) {
                     setIsCookModeOpen(false);
                     showToast("🎉 Congratulations, you finished cooking!");
