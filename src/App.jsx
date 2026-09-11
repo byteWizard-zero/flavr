@@ -58,6 +58,39 @@ const scaleNutrient = (str, multiplier = 1) => {
   });
 };
 
+function PlateForkLogo({ className = "w-6 h-6" }) {
+  return (
+    <svg 
+      className={className} 
+      viewBox="0 0 64 64" 
+      fill="none" 
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <defs>
+        <linearGradient id="flavrPlateGrad" x1="6" y1="6" x2="58" y2="58" gradientUnits="userSpaceOnUse">
+          <stop offset="0%" stopColor="#E26B3E"/>
+          <stop offset="100%" stopColor="#A53B18"/>
+        </linearGradient>
+        <filter id="flavrForkShadow" x="-15%" y="-15%" width="130%" height="130%">
+          <feDropShadow dx="0" dy="1.5" stdDeviation="1.5" floodColor="#4A1504" floodOpacity="0.35"/>
+        </filter>
+      </defs>
+      {/* Outer Ceramic Plate */}
+      <circle cx="32" cy="32" r="30" fill="url(#flavrPlateGrad)"/>
+      <circle cx="32" cy="32" r="29" stroke="#FFB092" strokeWidth="1.2" strokeOpacity="0.55"/>
+      {/* Inner Recessed Rim */}
+      <circle cx="32" cy="32" r="21" stroke="#FFF8F0" strokeWidth="1.6" strokeOpacity="0.9"/>
+      <circle cx="32" cy="32" r="19" stroke="#FFF8F0" strokeWidth="0.8" strokeDasharray="2 2" strokeOpacity="0.45"/>
+      <path d="M 16 18 A 20 20 0 0 1 44 14" stroke="#FFF8F0" strokeWidth="1" strokeLinecap="round" strokeOpacity="0.4"/>
+      {/* Angled Sculpted Fork */}
+      <g transform="rotate(35 32 32)" filter="url(#flavrForkShadow)">
+        <path fillRule="evenodd" clipRule="evenodd" d="M26 15C26 14.4 26.4 14 27 14C27.6 14 28 14.4 28 15V24H29.5V15C29.5 14.4 29.9 14 30.5 14C31.1 14 31.5 14.4 31.5 15V24H32.5V15C32.5 14.4 32.9 14 33.5 14C34.1 14 34.5 14.4 34.5 15V24H36V15C36 14.4 36.4 14 37 14C37.6 14 38 14.4 38 15V24.8C38 27.8 35.8 30.3 33.2 30.8V46C33.2 47.1 32.3 48 31.2 48C30.1 48 29.2 47.1 29.2 46V30.8C26.6 30.3 24.4 27.8 24.4 24.8V15C24.4 14.4 24.8 14 25.4 14C26 14 26 14.4 26 15Z" fill="#FFF8F0"/>
+      </g>
+    </svg>
+  );
+}
+
 export default function App() {
   const [inputValue, setInputValue] = useState('');
   const [suggestions, setSuggestions] = useState([]);
@@ -636,9 +669,18 @@ Generated beautifully via Flavr 🍳
           {/* HEADER ROW WITH BRAND & CONTROLS */}
           <div className="flex justify-between items-start gap-3 gsap-hero">
             <div>
-              <h1 className="font-serif text-3xl sm:text-4xl md:text-5xl font-medium text-charcoal tracking-tight mb-2">
-                Flavr
-              </h1>
+              <a 
+                href="/" 
+                className="inline-flex items-center gap-3.5 group focus:outline-none mb-2"
+                title="Flavr — Smart AI Pantry Chef"
+              >
+                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl shadow-xs group-hover:scale-105 group-hover:shadow-md transition-all duration-300 shrink-0 flex items-center justify-center">
+                  <PlateForkLogo className="w-10 h-10 sm:w-11 sm:h-11" />
+                </div>
+                <h1 className="font-serif text-3xl sm:text-4xl md:text-5xl font-medium text-charcoal dark:text-[#EDE8DE] tracking-tight group-hover:text-orange-burnt transition-colors">
+                  Flavr
+                </h1>
+              </a>
               <p className="text-xs sm:text-sm text-charcoal/70 italic font-serif">
                 Flip the kitchen script. Tell us what you have, we'll tell you what to cook.
               </p>
@@ -1211,7 +1253,10 @@ Generated beautifully via Flavr 🍳
 
         {/* FOOTER */}
         <div className="pt-8 border-t border-olive/10 dark:border-olive/20 flex flex-col sm:flex-row justify-between items-center text-xs text-charcoal/40 gap-3">
-          <span>Flavr — Culinary Simplicity</span>
+          <a href="/" className="inline-flex items-center gap-2 hover:text-orange-burnt transition-colors">
+            <PlateForkLogo className="w-4 h-4 shrink-0" />
+            <span>Flavr — Culinary Simplicity</span>
+          </a>
           <span className="text-charcoal/60 dark:text-charcoal/60 font-medium">
             made with ❤️ by shreyansh
           </span>
