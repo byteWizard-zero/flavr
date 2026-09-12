@@ -245,6 +245,29 @@ export default function App() {
   const favoritesDrawerRef = useRef(null);
   const cookModalRef = useRef(null);
   const toastRef = useRef(null);
+  const logoMarkRef = useRef(null);
+  const findRecipesBtnRef = useRef(null);
+  const timerBoxRef = useRef(null);
+  const prevIngredientsCount = useRef(ingredients.length);
+
+  // Overlay state: true whenever ANY overlay/modal/drawer is open
+  const isAnyOverlayActive = isSavedDrawerOpen || isCookModeOpen;
+
+  // Funny Interactive Animations
+  const triggerLogoSpin = () => {
+    if (!logoMarkRef.current) return;
+    gsap.timeline()
+      .to(logoMarkRef.current, { rotation: '+=360_cw', scale: 1.25, duration: 0.55, ease: 'back.out(2)' })
+      .to(logoMarkRef.current, { scale: 1, duration: 0.25, ease: 'elastic.out(1.2, 0.4)' });
+  };
+
+  const triggerStarPop = (e) => {
+    const star = e.currentTarget.querySelector('.star-icon') || e.currentTarget;
+    gsap.timeline()
+      .to(star, { scale: 0.6, duration: 0.1 })
+      .to(star, { scale: 1.4, rotation: '+=360_cw', duration: 0.4, ease: 'back.out(2.2)' })
+      .to(star, { scale: 1, duration: 0.15 });
+  };
 
   // Reset portion multiplier & checklist when active recipe switches
   const [prevRecipeId, setPrevRecipeId] = useState(selectedRecipe?.id);
@@ -277,11 +300,41 @@ export default function App() {
     });
   }, { scope: sidebarRef });
 
+  // Ingredient pill drop animation: popping in with an elastic chef-pan toss!
+  useGSAP(() => {
+    if (ingredients.length > prevIngredientsCount.current) {
+      const pills = document.querySelectorAll('.ingredient-pill');
+      if (pills.length > 0) {
+        const latestPill = pills[pills.length - 1];
+        gsap.fromTo(latestPill,
+          { y: -26, scaleX: 1.35, scaleY: 0.55, opacity: 0 },
+          { y: 0, scaleX: 1, scaleY: 1, opacity: 1, duration: 0.45, ease: 'elastic.out(1.3, 0.4)' }
+        );
+      }
+    }
+    prevIngredientsCount.current = ingredients.length;
+  }, { dependencies: [ingredients.length] });
+
+  // Curated recipe cards entrance with rustic table plate tilt
   useGSAP(() => {
     if (recipes && recipes.length > 0) {
       gsap.fromTo('.curated-card',
-        { y: 22, opacity: 0, scale: 0.97 },
-        { y: 0, opacity: 1, scale: 1, duration: 0.45, stagger: 0.08, ease: 'power2.out', clearProps: 'transform' }
+        {
+          y: 28,
+          opacity: 0,
+          scale: 0.94,
+          rotation: (i) => (i % 2 === 0 ? -1.5 : 1.5)
+        },
+        {
+          y: 0,
+          opacity: 1,
+          scale: 1,
+          rotation: 0,
+          duration: 0.5,
+          stagger: 0.09,
+          ease: 'back.out(1.4)',
+          clearProps: 'transform'
+        }
       );
     }
   }, { dependencies: [recipes], scope: viewportRef, revertOnUpdate: true });
@@ -295,25 +348,54 @@ export default function App() {
     }
   }, { dependencies: [selectedRecipe?.id], scope: viewportRef, revertOnUpdate: true });
 
+  // Witty Chef Sanity Check Warning (Exasperated Italian chef shake)
   useGSAP(() => {
     if (apiError && nudgeCardRef.current) {
       const tl = gsap.timeline();
       tl.fromTo(nudgeCardRef.current,
-        { scale: 0.88, y: -20, opacity: 0 },
-        { scale: 1, y: 0, opacity: 1, duration: 0.5, ease: 'back.out(1.5)' }
-      ).fromTo('.chef-emblem',
-        { scale: 0.5, rotation: -20 },
-        { scale: 1, rotation: 0, duration: 0.45, ease: 'elastic.out(1.2, 0.5)' },
-        '-=0.25'
-      );
+        { scale: 0.8, y: -25, opacity: 0 },
+        { scale: 1, y: 0, opacity: 1, duration: 0.4, ease: 'back.out(1.8)' }
+      )
+      .to(nudgeCardRef.current, {
+        x: -8,
+        duration: 0.07,
+        repeat: 5,
+        yoyo: true,
+        ease: 'power1.inOut'
+      })
+      .fromTo('.chef-emblem',
+        { scale: 0.5, rotation: -35 },
+        { scale: 1.25, rotation: 15, duration: 0.25, ease: 'back.out(2)' },
+        '-=0.35'
+      )
+      .to('.chef-emblem', {
+        scale: 1,
+        rotation: 0,
+        duration: 0.2,
+        ease: 'elastic.out(1.2, 0.4)'
+      });
     }
   }, { dependencies: [apiError], scope: viewportRef, revertOnUpdate: true });
 
+  // Fun pan-flip loading animation: tossing and catching the pan & egg
+  useGSAP(() => {
+    if (isLoading) {
+      const panTl = gsap.timeline({ repeat: -1 });
+      panTl
+        .to('.chef-pan-loader', { rotation: -18, scaleY: 0.85, duration: 0.25, ease: 'power1.in' })
+        .to('.chef-pan-loader', { y: -26, rotation: 360, scale: 1.25, duration: 0.45, ease: 'power2.out' })
+        .to('.chef-pan-loader', { y: 0, rotation: 0, scale: 1, duration: 0.3, ease: 'bounce.out' })
+        .to('.chef-pan-loader', { duration: 0.25 });
+      return () => panTl.kill();
+    }
+  }, { dependencies: [isLoading], scope: viewportRef });
+
+  // Toast notification entrance like an order slip landing on the rail
   useGSAP(() => {
     if (toastMessage && toastRef.current) {
       gsap.fromTo(toastRef.current,
-        { y: -16, opacity: 0, scale: 0.94 },
-        { y: 0, opacity: 1, scale: 1, duration: 0.3, ease: 'back.out(1.5)' }
+        { y: -30, opacity: 0, scale: 0.82, rotation: -4 },
+        { y: 0, opacity: 1, scale: 1, rotation: 0, duration: 0.45, ease: 'elastic.out(1.2, 0.4)' }
       );
     }
   }, { dependencies: [toastMessage] });
@@ -366,14 +448,36 @@ export default function App() {
     return () => window.removeEventListener('keydown', handleEscape);
   }, [isSavedDrawerOpen]);
 
+  // Cooking mode modal bouncy entrance
   useGSAP(() => {
     if (isCookModeOpen && cookModalRef.current) {
       gsap.fromTo(cookModalRef.current,
-        { scale: 0.92, opacity: 0, y: 15 },
-        { scale: 1, opacity: 1, y: 0, duration: 0.35, ease: 'power2.out' }
+        { scale: 0.86, opacity: 0, y: 30, rotation: -1.5 },
+        { scale: 1, opacity: 1, y: 0, rotation: 0, duration: 0.4, ease: 'back.out(1.6)' }
       );
     }
   }, { dependencies: [isCookModeOpen] });
+
+  // Step transition flip
+  useGSAP(() => {
+    if (isCookModeOpen) {
+      gsap.fromTo('.cook-step-content',
+        { y: 18, opacity: 0, scale: 0.96 },
+        { y: 0, opacity: 1, scale: 1, duration: 0.32, ease: 'back.out(1.4)' }
+      );
+    }
+  }, { dependencies: [activeCookStep, isCookModeOpen] });
+
+  // Ringing alarm wiggle when timer finishes
+  useEffect(() => {
+    if (timerSeconds === 0 && timerMaxSeconds > 0 && !isTimerRunning) {
+      if (timerBoxRef.current) {
+        gsap.timeline()
+          .to(timerBoxRef.current, { rotation: -10, scale: 1.08, duration: 0.08, repeat: 7, yoyo: true, ease: 'power1.inOut' })
+          .to(timerBoxRef.current, { rotation: 0, scale: 1, duration: 0.2, ease: 'elastic.out(1, 0.3)' });
+      }
+    }
+  }, [timerSeconds, timerMaxSeconds, isTimerRunning]);
 
   const savePantryToStorage = (newIngredients) => {
     localStorage.setItem('flavr_pantry', JSON.stringify(newIngredients));
@@ -574,6 +678,12 @@ Generated beautifully via Flavr 🍳
   };
 
   const handleFindRecipes = async () => {
+    if (findRecipesBtnRef.current) {
+      gsap.timeline()
+        .to(findRecipesBtnRef.current, { scaleX: 1.12, scaleY: 0.86, duration: 0.1, ease: 'power2.out' })
+        .to(findRecipesBtnRef.current, { y: -8, scaleX: 0.94, scaleY: 1.1, duration: 0.16, ease: 'power2.out' })
+        .to(findRecipesBtnRef.current, { y: 0, scaleX: 1, scaleY: 1, duration: 0.25, ease: 'bounce.out' });
+    }
     setIsLoading(true);
     setApiError('');
     setAiNudge('');
@@ -695,16 +805,16 @@ Generated beautifully via Flavr 🍳
       {/* TOAST NOTIFICATIONS */}
       <div 
         ref={toastRef} 
-        className={`fixed top-5 right-5 bg-charcoal text-[#FDFBF7] dark:bg-[#1C201A] dark:text-[#EDE8DE] dark:border dark:border-olive/30 px-5 py-3.5 rounded-lg shadow-2xl text-xs tracking-wide font-medium border border-orange-burnt/20 z-50 transition-opacity duration-300 ${toastMessage ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        className={`fixed top-5 right-5 liquid-glass-chip bg-charcoal/90 text-[#FDFBF7] dark:bg-[#1C201A]/95 dark:text-[#EDE8DE] dark:border dark:border-white/10 px-5 py-3.5 rounded-xl shadow-2xl text-xs tracking-wide font-medium border border-orange-burnt/30 z-50 transition-opacity duration-300 ${toastMessage ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
       >
-        ⚠️ {toastMessage}
+        <span className="inline-block mr-1">⚠️</span> {toastMessage}
       </div>
       
       {/* CONTROL INTERFACE PANEL */}
       <div 
         ref={sidebarRef} 
         className={`w-full md:w-2/5 p-6 sm:p-8 md:p-12 bg-cream-dark border-b md:border-b-0 md:border-r border-olive/10 flex flex-col justify-between shrink-0 min-h-[45vh] md:min-h-screen no-print transition-all duration-300 ${
-          isSavedDrawerOpen ? 'opacity-90 pointer-events-none select-none' : ''
+          isAnyOverlayActive ? 'opacity-85 scale-[0.995] pointer-events-none select-none' : ''
         }`}
       >
         <div className="space-y-6 md:space-y-8">
@@ -714,10 +824,17 @@ Generated beautifully via Flavr 🍳
             <div>
               <a 
                 href="/" 
-                className="inline-flex items-center gap-3.5 group focus:outline-none mb-2"
-                title="Flavr — Smart AI Pantry Chef"
+                onClick={(e) => {
+                  e.preventDefault();
+                  triggerLogoSpin();
+                }}
+                className="inline-flex items-center gap-3.5 group focus:outline-none mb-2 cursor-pointer select-none"
+                title="Flavr — Smart AI Pantry Chef (Click me for a chef's flip!)"
               >
-                <div className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl shadow-xs group-hover:scale-105 group-hover:shadow-md transition-all duration-300 shrink-0 flex items-center justify-center">
+                <div 
+                  ref={logoMarkRef}
+                  className="w-10 h-10 sm:w-11 sm:h-11 rounded-xl shadow-xs group-hover:scale-105 group-hover:shadow-md transition-all duration-300 shrink-0 flex items-center justify-center cursor-pointer"
+                >
                   <PlateForkLogo className="w-10 h-10 sm:w-11 sm:h-11" />
                 </div>
                 <h1 className="font-serif text-3xl sm:text-4xl md:text-5xl font-medium text-charcoal dark:text-[#EDE8DE] tracking-tight group-hover:text-orange-burnt transition-colors">
@@ -772,11 +889,14 @@ Generated beautifully via Flavr 🍳
 
               {/* FAVORITES BUTTON */}
               <button
-                onClick={() => setIsSavedDrawerOpen(true)}
-                className="bg-cream hover:bg-cream-dark border border-olive/20 dark:border-olive/30 p-2.5 rounded-lg shadow-sm transition-all hover:border-orange-burnt active:scale-95 flex items-center gap-1.5 text-xs font-semibold shrink-0"
+                onClick={(e) => {
+                  triggerStarPop(e);
+                  setIsSavedDrawerOpen(true);
+                }}
+                className="bg-cream hover:bg-cream-dark border border-olive/20 dark:border-olive/30 p-2.5 rounded-lg shadow-sm transition-all hover:border-orange-burnt active:scale-95 flex items-center gap-1.5 text-xs font-semibold shrink-0 cursor-pointer group"
                 title="Open Favorite Recipes"
               >
-                ⭐️ <span className="hidden sm:inline">Favorites ({savedRecipes.length})</span>
+                <span className="star-icon inline-block">⭐️</span> <span className="hidden sm:inline">Favorites ({savedRecipes.length})</span>
               </button>
             </div>
           </div>
@@ -808,12 +928,12 @@ Generated beautifully via Flavr 🍳
               />
 
               {/* SUGGESTIONS MENU */}
-              <ul className={`absolute left-0 right-0 mt-1 bg-cream border border-olive/10 dark:border-olive/25 rounded-lg shadow-lg max-h-48 overflow-y-auto z-40 text-sm transition-all duration-200 transform origin-top ${suggestions.length > 0 ? 'opacity-100 scale-y-100 translate-y-0' : 'opacity-0 scale-y-95 -translate-y-2 pointer-events-none'}`}>
+              <ul className={`absolute left-0 right-0 mt-1 liquid-glass-chip bg-cream/95 dark:bg-[#1A1E17]/95 border border-olive/15 dark:border-white/10 rounded-xl shadow-2xl max-h-48 overflow-y-auto z-40 text-sm transition-all duration-200 transform origin-top ${suggestions.length > 0 ? 'opacity-100 scale-y-100 translate-y-0' : 'opacity-0 scale-y-95 -translate-y-2 pointer-events-none'}`}>
                 {suggestions.map((suggestion, idx) => (
                   <li 
                     key={idx}
                     onClick={() => !isLoading && addIngredientTag(suggestion)}
-                    className="px-4 py-2.5 hover:bg-cream-dark cursor-pointer text-charcoal/80 hover:text-orange-burnt transition-colors first:rounded-t-lg last:rounded-b-lg border-b border-cream-dark dark:border-olive/10 last:border-none"
+                    className="px-4 py-2.5 hover:bg-cream-dark dark:hover:bg-white/10 cursor-pointer text-charcoal/80 hover:text-orange-burnt transition-colors first:rounded-t-xl last:rounded-b-xl border-b border-cream-dark dark:border-white/5 last:border-none"
                   >
                     {suggestion}
                   </li>
@@ -826,13 +946,31 @@ Generated beautifully via Flavr 🍳
               {ingredients.map((item, index) => (
                 <span 
                   key={index}
-                  className="inline-flex items-center gap-1.5 bg-olive text-white text-xs font-medium px-3 py-1.5 rounded-full shadow-sm animate-fade-in"
+                  className="ingredient-pill inline-flex items-center gap-1.5 bg-olive text-white text-xs font-medium px-3 py-1.5 rounded-full shadow-sm hover:scale-105 hover:-translate-y-0.5 transition-transform cursor-default select-none"
                 >
                   {item}
                   <button 
-                    onClick={() => !isLoading && removeIngredient(index)}
+                    onClick={(e) => {
+                      if (isLoading) return;
+                      const target = e.currentTarget.closest('.ingredient-pill');
+                      if (target) {
+                        gsap.to(target, {
+                          x: 35,
+                          y: -22,
+                          rotation: 25,
+                          scale: 0.5,
+                          opacity: 0,
+                          duration: 0.22,
+                          ease: 'power2.in',
+                          onComplete: () => removeIngredient(index)
+                        });
+                      } else {
+                        removeIngredient(index);
+                      }
+                    }}
                     disabled={isLoading}
-                    className="hover:text-orange-burnt transition-colors text-sm font-bold focus:outline-none ml-0.5 disabled:opacity-30"
+                    className="hover:text-orange-burnt transition-colors text-sm font-bold focus:outline-none ml-0.5 disabled:opacity-30 cursor-pointer"
+                    title="Remove ingredient"
                   >
                     ×
                   </button>
@@ -853,12 +991,22 @@ Generated beautifully via Flavr 🍳
                   <button
                     key={preset.id}
                     type="button"
-                    onClick={() => applyPreset(preset.items)}
+                    onClick={(e) => {
+                      gsap.timeline()
+                        .to(e.currentTarget, { scale: 0.92, duration: 0.1 })
+                        .to(e.currentTarget, { scale: 1.05, duration: 0.18, ease: 'back.out(2)' })
+                        .to(e.currentTarget, { scale: 1, duration: 0.12 });
+                      applyPreset(preset.items);
+                    }}
+                    onMouseEnter={(e) => {
+                      const icon = e.currentTarget.querySelector('.pack-icon');
+                      if (icon) gsap.to(icon, { y: -3, duration: 0.15, yoyo: true, repeat: 1 });
+                    }}
                     disabled={isLoading}
                     className="text-[11px] px-2.5 py-1 rounded-md border border-olive/20 dark:border-olive/30 bg-cream/70 hover:bg-cream dark:bg-cream-dark/40 hover:border-orange-burnt/60 hover:text-orange-burnt transition-all flex items-center gap-1 cursor-pointer group disabled:opacity-40"
                     title={`Loads: ${preset.items.join(', ')}`}
                   >
-                    <span>{preset.icon}</span>
+                    <span className="pack-icon inline-block">{preset.icon}</span>
                     <span className="font-medium text-charcoal/80 group-hover:text-orange-burnt">{preset.name}</span>
                   </button>
                 ))}
@@ -959,17 +1107,27 @@ Generated beautifully via Flavr 🍳
                     <button
                       key={equip.id}
                       type="button"
-                      onClick={() => toggleEquipment(equip.id)}
+                      onClick={(e) => {
+                        gsap.timeline()
+                          .to(e.currentTarget, { scale: 0.94, duration: 0.08 })
+                          .to(e.currentTarget, { scale: 1.04, duration: 0.18, ease: 'back.out(2)' })
+                          .to(e.currentTarget, { scale: 1, duration: 0.1 });
+                        toggleEquipment(equip.id);
+                      }}
+                      onMouseEnter={(e) => {
+                        const icon = e.currentTarget.querySelector('.gear-icon');
+                        if (icon) gsap.to(icon, { rotation: -14, scale: 1.25, duration: 0.16, yoyo: true, repeat: 1 });
+                      }}
                       aria-pressed={isSelected}
                       title={equip.desc}
-                      className={`flex items-center justify-between px-2.5 py-2 rounded-lg border text-xs font-medium transition-all duration-150 cursor-pointer text-left ${
+                      className={`flex items-center justify-between px-2.5 py-2 rounded-lg border text-xs font-medium transition-all duration-150 cursor-pointer text-left select-none ${
                         isSelected 
                           ? 'bg-olive text-white border-olive shadow-xs' 
                           : 'bg-cream border-olive/15 dark:border-olive/25 text-charcoal/75 hover:border-orange-burnt/60 hover:text-charcoal dark:bg-cream-dark/30'
                       }`}
                     >
                       <span className="flex items-center gap-1.5 truncate">
-                        <span>{equip.icon}</span>
+                        <span className="gear-icon inline-block">{equip.icon}</span>
                         <span className="truncate">{equip.label.split(' (')[0]}</span>
                       </span>
                       <span className={`text-[10px] ml-1 shrink-0 font-bold ${isSelected ? 'text-white' : 'text-charcoal/30'}`}>
@@ -1021,13 +1179,20 @@ Generated beautifully via Flavr 🍳
 
         <div className="pt-6 md:pt-8">
           <button 
-            onClick={handleFindRecipes}
+            ref={findRecipesBtnRef}
+            onClick={(e) => {
+              gsap.timeline()
+                .to(e.currentTarget, { scale: 0.94, duration: 0.1 })
+                .to(e.currentTarget, { scale: 1.03, duration: 0.2, ease: 'back.out(2)' })
+                .to(e.currentTarget, { scale: 1, duration: 0.15 });
+              handleFindRecipes();
+            }}
             disabled={ingredients.length === 0 || isLoading}
-            className="w-full bg-orange-burnt text-white py-4 rounded-lg font-serif tracking-wide text-base sm:text-lg hover:bg-orange-burnt/90 transition-all shadow-md disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer"
+            className="w-full bg-orange-burnt text-white py-4 rounded-lg font-serif tracking-wide text-base sm:text-lg hover:bg-orange-burnt/90 transition-all shadow-md disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2 cursor-pointer active:scale-95 select-none"
           >
             {isLoading ? (
               <>
-                <span className="animate-spin text-xl">🍳</span> Crafting Your Recipes...
+                <span className="chef-pan-loader text-xl inline-block">🍳</span> Crafting Your Recipes...
               </>
             ) : "Find Recipes"}
           </button>
@@ -1038,14 +1203,14 @@ Generated beautifully via Flavr 🍳
       <div 
         ref={viewportRef} 
         className={`w-full md:w-3/5 p-6 sm:p-8 md:p-12 flex flex-col justify-between bg-cream min-h-[50vh] md:min-h-screen overflow-y-auto transition-all duration-300 ${
-          isSavedDrawerOpen ? 'opacity-90 pointer-events-none select-none' : ''
+          isAnyOverlayActive ? 'opacity-85 scale-[0.995] pointer-events-none select-none' : ''
         }`}
       >
         
         <div className="w-full flex-grow flex flex-col">
           {isLoading && (
-            <div className="m-auto text-center space-y-4 py-12 animate-pulse no-print">
-              <span className="text-4xl sm:text-5xl inline-block animate-bounce">🍳</span>
+            <div className="m-auto text-center space-y-4 py-12 no-print">
+              <span className="chef-pan-loader text-5xl sm:text-6xl inline-block transform origin-bottom">🍳</span>
               <h3 className="font-serif text-lg sm:text-xl font-medium text-charcoal">Frying up some delicious recipes...</h3>
               <p className="text-xs text-charcoal/50">Our AI chef is tailoring recipes to your pantry!</p>
             </div>
@@ -1104,7 +1269,9 @@ Generated beautifully via Flavr 🍳
                       <div 
                         key={recipe.id}
                         onClick={() => setSelectedRecipe(recipe)}
-                        className={`curated-card p-4 sm:p-5 rounded-xl border transition-all cursor-pointer shadow-sm transform hover:-translate-y-0.5 active:translate-y-0 duration-200 ${isSelected ? 'bg-cream-dark border-orange-burnt ring-1 ring-orange-burnt' : 'bg-cream-dark/40 dark:bg-cream-dark/30 border-olive/10 dark:border-olive/20 hover:border-olive/30'}`}
+                        onMouseEnter={(e) => gsap.to(e.currentTarget, { y: -4, scale: 1.015, duration: 0.2, ease: 'power2.out' })}
+                        onMouseLeave={(e) => gsap.to(e.currentTarget, { y: 0, scale: 1, duration: 0.2, ease: 'power2.out' })}
+                        className={`curated-card p-4 sm:p-5 rounded-xl border cursor-pointer shadow-sm ${isSelected ? 'bg-cream-dark border-orange-burnt ring-1 ring-orange-burnt' : 'bg-cream-dark/40 dark:bg-cream-dark/30 border-olive/10 dark:border-olive/20 hover:border-olive/30'}`}
                       >
                         <div className="flex items-center justify-between gap-1">
                           <span className="text-[10px] font-semibold text-orange-burnt tracking-wide uppercase">{recipe.cuisine}</span>
@@ -1153,8 +1320,8 @@ Generated beautifully via Flavr 🍳
                               onClick={() => setServingsMultiplier(multiplier)}
                               className={`px-2 py-0.5 rounded text-xs font-semibold transition-all cursor-pointer ${
                                 servingsMultiplier === multiplier
-                                  ? 'bg-orange-burnt text-white shadow-xs'
-                                  : 'text-charcoal/60 hover:text-charcoal hover:bg-olive/10'
+                                    ? 'bg-orange-burnt text-white shadow-xs'
+                                    : 'text-charcoal/60 hover:text-charcoal hover:bg-olive/10'
                               }`}
                             >
                               {multiplier}x
@@ -1190,11 +1357,16 @@ Generated beautifully via Flavr 🍳
 
                       {/* FAVORITE BUTTON */}
                       <button 
-                        onClick={() => toggleSaveRecipe(selectedRecipe)}
+                        onClick={(e) => {
+                          triggerStarPop(e);
+                          toggleSaveRecipe(selectedRecipe);
+                        }}
                         title={savedRecipes.some(r => r.id === selectedRecipe.id) ? "Remove from favorites" : "Save to favorites"}
                         className="bg-cream hover:bg-cream-dark border border-olive/20 dark:border-olive/30 p-2.5 rounded-lg shadow-xs transition-all hover:border-orange-burnt active:scale-95 text-sm cursor-pointer"
                       >
-                        {savedRecipes.some(r => r.id === selectedRecipe.id) ? '⭐' : '☆'}
+                        <span className="star-icon inline-block">
+                          {savedRecipes.some(r => r.id === selectedRecipe.id) ? '⭐' : '☆'}
+                        </span>
                       </button>
                       
                       {/* COPY BUTTON */}
@@ -1459,11 +1631,20 @@ Generated beautifully via Flavr 🍳
 
       {/* INTERACTIVE COOKING MODE OVERLAY */}
       {isCookModeOpen && activeCookRecipe && (
-        <div className="fixed inset-0 bg-charcoal/90 dark:bg-black/80 backdrop-blur-md z-[60] flex items-center justify-center p-4 sm:p-6 transition-all duration-300 no-print">
-          <div ref={cookModalRef} className="bg-cream w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col justify-between overflow-hidden max-h-[90vh] border border-olive/10 dark:border-olive/25">
+        <div 
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              pauseTimer();
+              stopSpeaking();
+              setIsCookModeOpen(false);
+            }
+          }}
+          className="fixed inset-0 liquid-glass-backdrop bg-charcoal/30 dark:bg-black/50 z-[60] flex items-center justify-center p-4 sm:p-6 transition-all duration-300 no-print"
+        >
+          <div ref={cookModalRef} className="liquid-glass-modal w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col justify-between overflow-hidden max-h-[90vh]">
             
             {/* Header */}
-            <div className="bg-cream-dark p-5 border-b border-olive/15 flex justify-between items-center">
+            <div className="bg-cream-dark/80 dark:bg-black/20 p-5 border-b border-olive/15 dark:border-white/10 flex justify-between items-center">
               <div>
                 <div className="flex items-center gap-2">
                   <span className="text-[10px] font-semibold text-orange-burnt tracking-wide uppercase">Cooking Mode</span>
@@ -1488,7 +1669,7 @@ Generated beautifully via Flavr 🍳
             </div>
 
             {/* Progress Bar */}
-            <div className="w-full bg-cream-dark h-1.5">
+            <div className="w-full bg-cream-dark/50 h-1.5">
               <div 
                 className="bg-orange-burnt h-full transition-all duration-300"
                 style={{ width: `${((activeCookStep + 1) / activeCookRecipe.instructions.length) * 100}%` }}
@@ -1498,19 +1679,21 @@ Generated beautifully via Flavr 🍳
             {/* Content Body */}
             <div className="flex-grow p-6 sm:p-8 overflow-y-auto flex flex-col items-center justify-start space-y-6">
               
-              {/* Step counter */}
-              <span className="bg-charcoal text-white dark:bg-[#252C21] dark:text-[#EDE8DE] dark:border dark:border-olive/20 font-serif text-sm px-3 py-1 rounded-full font-bold">
-                Step {activeCookStep + 1} of {activeCookRecipe.instructions.length}
-              </span>
+              <div className="cook-step-content flex flex-col items-center justify-start space-y-6 w-full">
+                {/* Step counter */}
+                <span className="bg-charcoal text-white dark:bg-[#252C21] dark:text-[#EDE8DE] dark:border dark:border-olive/20 font-serif text-sm px-3 py-1 rounded-full font-bold">
+                  Step {activeCookStep + 1} of {activeCookRecipe.instructions.length}
+                </span>
 
-              {/* Step Text */}
-              <p className="font-serif text-lg sm:text-xl md:text-2xl text-charcoal text-center leading-relaxed font-medium px-4">
-                {activeCookRecipe.instructions[activeCookStep].replace(/^\*\*\d+\.\s*.*?\*\*\s*/, '')}
-              </p>
+                {/* Step Text */}
+                <p className="font-serif text-lg sm:text-xl md:text-2xl text-charcoal text-center leading-relaxed font-medium px-4">
+                  {activeCookRecipe.instructions[activeCookStep].replace(/^\*\*\d+\.\s*.*?\*\*\s*/, '')}
+                </p>
+              </div>
 
               {/* Timer Dashboard (Conditionally rendered) */}
               {timerMaxSeconds > 0 && (
-                <div className="flex flex-col items-center gap-4 bg-cream-dark/50 dark:bg-cream-dark/30 p-6 rounded-2xl border border-olive/10 dark:border-olive/20 w-full max-w-sm">
+                <div ref={timerBoxRef} className="flex flex-col items-center gap-4 bg-cream-dark/50 dark:bg-cream-dark/30 p-6 rounded-2xl border border-olive/10 dark:border-olive/20 w-full max-w-sm">
                   <div className="relative flex items-center justify-center">
                     {/* Circular Timer SVG */}
                     <svg className="w-32 h-32 transform -rotate-90">
