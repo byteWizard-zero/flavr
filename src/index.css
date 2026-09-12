@@ -139,6 +139,20 @@ body {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
 }
 
+.liquid-glass-modal {
+  background: color-mix(in srgb, var(--color-cream) 92%, transparent);
+  backdrop-filter: blur(24px) saturate(180%);
+  -webkit-backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25), inset 0 1px 0 0 rgba(255, 255, 255, 0.35);
+}
+
+.dark .liquid-glass-modal {
+  background: rgba(22, 26, 20, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.65), inset 0 1px 0 0 rgba(255, 255, 255, 0.08);
+}
+
 /* Accessibility: Respect Reduce Transparency with high-contrast non-glass fallback */
 @media (prefers-reduced-transparency: reduce) {
   .liquid-glass-backdrop {
@@ -152,6 +166,14 @@ body {
     background: var(--color-cream) !important;
   }
   .dark .liquid-glass-drawer {
+    background: #121511 !important;
+  }
+  .liquid-glass-modal {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    background: var(--color-cream) !important;
+  }
+  .dark .liquid-glass-modal {
     background: #121511 !important;
   }
   .liquid-glass-chip {
