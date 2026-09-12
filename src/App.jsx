@@ -247,10 +247,12 @@ export default function App() {
   const toastRef = useRef(null);
 
   // Reset portion multiplier & checklist when active recipe switches
-  useEffect(() => {
+  const [prevRecipeId, setPrevRecipeId] = useState(selectedRecipe?.id);
+  if (selectedRecipe?.id !== prevRecipeId) {
+    setPrevRecipeId(selectedRecipe?.id);
     setServingsMultiplier(1);
     setCheckedMissing({});
-  }, [selectedRecipe?.id]);
+  }
 
   // Filter favorites by search query
   const filteredFavorites = useMemo(() => {
@@ -316,14 +318,53 @@ export default function App() {
     }
   }, { dependencies: [toastMessage] });
 
+  const drawerMountedRef = useRef(false);
+
   useGSAP(() => {
-    if (isSavedDrawerOpen && favoritesDrawerRef.current) {
-      gsap.fromTo(favoritesDrawerRef.current,
-        { x: '100%' },
-        { x: '0%', duration: 0.35, ease: 'power3.out' }
-      );
+    const el = favoritesDrawerRef.current;
+    if (!el) return;
+
+    if (!drawerMountedRef.current) {
+      drawerMountedRef.current = true;
+      gsap.set(el, { x: '100%', visibility: 'hidden' });
+      return;
+    }
+
+    if (isSavedDrawerOpen) {
+      gsap.killTweensOf(el);
+      gsap.set(el, { visibility: 'visible' });
+      gsap.to(el, {
+        x: '0%',
+        duration: 0.35,
+        ease: 'power3.out',
+        overwrite: 'auto'
+      });
+    } else {
+      gsap.killTweensOf(el);
+      gsap.to(el, {
+        x: '100%',
+        duration: 0.28,
+        ease: 'power3.in',
+        overwrite: 'auto',
+        onComplete: () => {
+          if (!isSavedDrawerOpen && favoritesDrawerRef.current) {
+            gsap.set(favoritesDrawerRef.current, { visibility: 'hidden' });
+          }
+        }
+      });
     }
   }, { dependencies: [isSavedDrawerOpen] });
+
+  // Close favorites drawer on Escape key
+  useEffect(() => {
+    const handleEscape = (e) => {
+      if (e.key === 'Escape' && isSavedDrawerOpen) {
+        setIsSavedDrawerOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [isSavedDrawerOpen]);
 
   useGSAP(() => {
     if (isCookModeOpen && cookModalRef.current) {
@@ -662,7 +703,9 @@ Generated beautifully via Flavr 🍳
       {/* CONTROL INTERFACE PANEL */}
       <div 
         ref={sidebarRef} 
-        className="w-full md:w-2/5 p-6 sm:p-8 md:p-12 bg-cream-dark border-b md:border-b-0 md:border-r border-olive/10 flex flex-col justify-between shrink-0 min-h-[45vh] md:min-h-screen no-print"
+        className={`w-full md:w-2/5 p-6 sm:p-8 md:p-12 bg-cream-dark border-b md:border-b-0 md:border-r border-olive/10 flex flex-col justify-between shrink-0 min-h-[45vh] md:min-h-screen no-print transition-all duration-300 ${
+          isSavedDrawerOpen ? 'opacity-90 pointer-events-none select-none' : ''
+        }`}
       >
         <div className="space-y-6 md:space-y-8">
           
@@ -994,7 +1037,9 @@ Generated beautifully via Flavr 🍳
       {/* DYNAMIC RECIPE VIEWPORT CONTAINER */}
       <div 
         ref={viewportRef} 
-        className="w-full md:w-3/5 p-6 sm:p-8 md:p-12 flex flex-col justify-between bg-cream min-h-[50vh] md:min-h-screen overflow-y-auto"
+        className={`w-full md:w-3/5 p-6 sm:p-8 md:p-12 flex flex-col justify-between bg-cream min-h-[50vh] md:min-h-screen overflow-y-auto transition-all duration-300 ${
+          isSavedDrawerOpen ? 'opacity-90 pointer-events-none select-none' : ''
+        }`}
       >
         
         <div className="w-full flex-grow flex flex-col">
@@ -1264,22 +1309,36 @@ Generated beautifully via Flavr 🍳
         </div>
       </div>
 
+      {/* BACKDROP FOR FAVORITES DRAWER */}
+      <div 
+        onClick={() => setIsSavedDrawerOpen(false)}
+        aria-label="Close favorites menu"
+        className={`fixed inset-0 liquid-glass-backdrop bg-charcoal/15 dark:bg-black/35 z-40 transition-all duration-300 no-print ${
+          isSavedDrawerOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+        }`}
+      />
+
       {/* SAVED RECIPES DRAWER */}
       <div 
         ref={favoritesDrawerRef} 
-        className={`fixed top-0 right-0 h-full w-full sm:w-[420px] bg-cream shadow-2xl border-l border-olive/10 dark:border-olive/20 z-50 transition-all duration-300 transform no-print ${isSavedDrawerOpen ? 'translate-x-0' : 'translate-x-full'}`}
+        aria-hidden={!isSavedDrawerOpen}
+        style={{ transform: 'translateX(100%)', visibility: 'hidden' }}
+        className="fixed top-0 right-0 h-full w-full sm:w-[420px] liquid-glass-drawer z-50 no-print"
       >
         <div className="p-6 h-full flex flex-col justify-between">
-          <div className="space-y-3 border-b border-olive/10 dark:border-olive/20 pb-4">
+          <div className="space-y-3 border-b border-olive/10 dark:border-white/10 pb-4">
             <div className="flex justify-between items-center">
               <h3 className="font-serif text-xl font-medium text-charcoal flex items-center gap-2">
                 ⭐️ Favorite Recipes
               </h3>
               <button 
+                type="button"
                 onClick={() => setIsSavedDrawerOpen(false)}
-                className="text-2xl text-charcoal hover:text-orange-burnt transition-colors focus:outline-none cursor-pointer"
+                aria-label="Close favorite recipes"
+                title="Close"
+                className="w-8 h-8 flex items-center justify-center rounded-full bg-charcoal/5 dark:bg-white/10 hover:bg-charcoal/10 dark:hover:bg-white/20 border border-charcoal/10 dark:border-white/15 text-charcoal/70 hover:text-charcoal transition-all text-xs font-semibold focus:outline-none cursor-pointer"
               >
-                ×
+                ✕
               </button>
             </div>
 
@@ -1291,7 +1350,7 @@ Generated beautifully via Flavr 🍳
                   value={favoritesSearch}
                   onChange={(e) => setFavoritesSearch(e.target.value)}
                   placeholder="Filter favorites by name, cuisine, gear..."
-                  className="w-full bg-cream-dark/80 border border-olive/20 dark:border-olive/30 rounded-lg pl-8 pr-7 py-2 text-xs focus:outline-none focus:border-orange-burnt transition-all font-sans placeholder-charcoal/40"
+                  className="w-full bg-white/40 dark:bg-white/[0.04] backdrop-blur-sm border border-olive/20 dark:border-white/10 rounded-lg pl-8 pr-7 py-2 text-xs focus:outline-none focus:border-orange-burnt transition-all font-sans placeholder-charcoal/40"
                 />
                 <span className="absolute left-2.5 top-3 text-xs opacity-50">🔍</span>
                 {favoritesSearch && (
@@ -1335,7 +1394,7 @@ Generated beautifully via Flavr 🍳
                     setSelectedRecipe(recipe);
                     setIsSavedDrawerOpen(false);
                   }}
-                  className="p-4 rounded-xl border border-olive/10 dark:border-olive/20 bg-cream-dark/50 hover:bg-cream-dark transition-all cursor-pointer group"
+                  className="p-4 rounded-xl liquid-glass-chip hover:bg-white/70 dark:hover:bg-white/[0.07] transition-all cursor-pointer group"
                 >
                   <div className="flex items-center justify-between gap-2 mb-1.5">
                     <span className="text-[10px] font-semibold text-orange-burnt tracking-wide uppercase truncate">
@@ -1343,7 +1402,7 @@ Generated beautifully via Flavr 🍳
                     </span>
                     <div className="flex items-center gap-1.5 shrink-0">
                       {recipe.equipment && (
-                        <span className="text-[10px] text-olive font-medium bg-olive/10 dark:bg-olive/20 px-2 py-0.5 rounded truncate max-w-[120px]">
+                        <span className="text-[10px] text-olive font-medium bg-olive/10 dark:bg-white/10 px-2 py-0.5 rounded truncate max-w-[120px]">
                           {getEquipmentIcon(recipe.equipment)} {recipe.equipment}
                         </span>
                       )}
@@ -1369,7 +1428,7 @@ Generated beautifully via Flavr 🍳
                   <p className="text-xs text-charcoal/50 mt-1 line-clamp-2 leading-relaxed">
                     {recipe.description}
                   </p>
-                  <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-olive/5 dark:border-olive/15 text-[10px] text-charcoal/60">
+                  <div className="flex items-center justify-between mt-2.5 pt-2 border-t border-olive/5 dark:border-white/5 text-[10px] text-charcoal/60">
                     <div className="flex items-center gap-3">
                       <span>⏱️ {recipe.cookTime}</span>
                       <span>🔥 {recipe.difficulty}</span>
@@ -1383,13 +1442,14 @@ Generated beautifully via Flavr 🍳
             )}
           </div>
           
-          <div className="border-t border-olive/10 dark:border-olive/20 pt-4 flex items-center justify-between gap-2">
+          <div className="border-t border-olive/10 dark:border-white/10 pt-4 flex items-center justify-between gap-2">
             <span className="text-[10px] text-charcoal/50">
               {filteredFavorites.length} of {savedRecipes.length} saved
             </span>
             <button 
+              type="button"
               onClick={() => setIsSavedDrawerOpen(false)}
-              className="bg-charcoal text-white dark:bg-[#252C21] dark:text-[#EDE8DE] dark:border dark:border-olive/20 px-5 py-2.5 rounded-lg text-xs font-medium hover:bg-charcoal/90 dark:hover:bg-[#2E362A] transition-all shadow-md cursor-pointer"
+              className="bg-charcoal/90 text-white dark:bg-[#252C21]/90 dark:text-[#EDE8DE] dark:border dark:border-white/15 backdrop-blur-md px-5 py-2.5 rounded-lg text-xs font-medium hover:bg-charcoal dark:hover:bg-[#2E362A] transition-all shadow-md active:scale-95 cursor-pointer"
             >
               Close
             </button>
@@ -1397,17 +1457,9 @@ Generated beautifully via Flavr 🍳
         </div>
       </div>
 
-      {/* Backdrop for saved drawer */}
-      {isSavedDrawerOpen && (
-        <div 
-          onClick={() => setIsSavedDrawerOpen(false)}
-          className="fixed inset-0 bg-charcoal/40 dark:bg-black/60 backdrop-blur-xs z-40 transition-opacity no-print"
-        />
-      )}
-
       {/* INTERACTIVE COOKING MODE OVERLAY */}
       {isCookModeOpen && activeCookRecipe && (
-        <div className="fixed inset-0 bg-charcoal/90 dark:bg-black/80 backdrop-blur-md z-50 flex items-center justify-center p-4 sm:p-6 transition-all duration-300 no-print">
+        <div className="fixed inset-0 bg-charcoal/90 dark:bg-black/80 backdrop-blur-md z-[60] flex items-center justify-center p-4 sm:p-6 transition-all duration-300 no-print">
           <div ref={cookModalRef} className="bg-cream w-full max-w-2xl rounded-2xl shadow-2xl flex flex-col justify-between overflow-hidden max-h-[90vh] border border-olive/10 dark:border-olive/25">
             
             {/* Header */}
